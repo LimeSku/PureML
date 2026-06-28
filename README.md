@@ -1,4 +1,4 @@
-# Rewrite Machine Learning
+# PureML
 
 Educational implementations of core machine learning models from scratch.
 
