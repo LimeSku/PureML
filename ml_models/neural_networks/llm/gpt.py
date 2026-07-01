@@ -1,7 +1,7 @@
 import numpy as np
 
-from ml_models.LLM.embeddings import LLMEmbeddingLayer
-from ml_models.LLM.transformer import LayerNorm, TransformerBlock
+from ml_models.neural_networks.llm.embeddings import llmEmbeddingLayer
+from ml_models.neural_networks.llm.transformer import LayerNorm, TransformerBlock
 
 
 class TinyGPT:
@@ -19,7 +19,7 @@ class TinyGPT:
         self.ctx_length = ctx_length
         self.embedding_dim = embedding_dim
 
-        self.embedding_layer = LLMEmbeddingLayer(
+        self.embedding_layer = llmEmbeddingLayer(
             vocab_size=vocab_size,
             ctx_length=ctx_length,
             embedding_dim=embedding_dim,

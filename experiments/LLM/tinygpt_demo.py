@@ -1,6 +1,9 @@
-from ml_models.LLM.generation import generate
-from ml_models.LLM.gpt import TinyGPT
-from ml_models.LLM.tokenizer import DEFAULT_CHARACTERS, CharacterTokenizer
+from ml_models.neural_networks.llm.generation import generate
+from ml_models.neural_networks.llm.gpt import TinyGPT
+from ml_models.neural_networks.llm.tokenizer import (
+    DEFAULT_CHARACTERS,
+    CharacterTokenizer,
+)
 
 
 def main() -> None:

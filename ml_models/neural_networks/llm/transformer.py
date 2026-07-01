@@ -1,6 +1,6 @@
 import numpy as np
 
-from ml_models.LLM.attention import MultiHeadCausalSelfAttention
+from ml_models.neural_networks.llm.attention import MultiHeadCausalSelfAttention
 
 
 class FeedForward:

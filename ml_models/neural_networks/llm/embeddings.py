@@ -24,7 +24,7 @@ class Embedding:
         return self.forward(token_ids)
 
 
-class LLMEmbeddingLayer:
+class llmEmbeddingLayer:
     def __init__(self, vocab_size: int, ctx_length: int, embedding_dim: int):
         self.token_embedding_layer = Embedding(vocab_size, embedding_dim)
         self.pos_embedding_layer = Embedding(ctx_length, embedding_dim, init_std=0.01)

@@ -1,5 +1,5 @@
-from ml_models.LLM.dataset import LLMDataset
-from ml_models.LLM.tokenizer import CharacterTokenizer
+from ml_models.neural_networks.llm.dataset import llmDataset
+from ml_models.neural_networks.llm.tokenizer import CharacterTokenizer
 
 
 def main() -> None:
@@ -7,7 +7,7 @@ def main() -> None:
     ctx_length = 4
 
     tokenizer = CharacterTokenizer().fit(text)
-    dataset = LLMDataset.from_text(
+    dataset = llmDataset.from_text(
         text=text,
         tokenizer=tokenizer,
         ctx_length=ctx_length,

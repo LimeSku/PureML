@@ -1,7 +1,7 @@
-from ml_models.LLM.tokenizer import CharacterTokenizer
+from ml_models.neural_networks.llm.tokenizer import CharacterTokenizer
 
 
-class LLMDataset:
+class llmDataset:
     def __init__(self, token_ids: list[int], ctx_length: int):
         if len(token_ids) <= ctx_length:
             raise ValueError("token_ids must contain more tokens than ctx_length")
@@ -22,7 +22,7 @@ class LLMDataset:
         text: str,
         tokenizer: CharacterTokenizer,
         ctx_length: int,
-    ) -> "LLMDataset":
+    ) -> "llmDataset":
         """
         tokenizer: must be fit, will raise otherwise
         """
