@@ -1,6 +1,6 @@
 import numpy as np
 
-from ml_models.neural_networks.mlp.classifier import MLPClassifier
+from pureml.neural_networks.mlp.classifier import MLPClassifier
 
 X = np.array([
     [0.0, 0.0],

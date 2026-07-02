@@ -1,6 +1,6 @@
-from ml_models.neural_networks.llm.generation import generate
-from ml_models.neural_networks.llm.gpt import TinyGPT
-from ml_models.neural_networks.llm.tokenizer import (
+from pureml.neural_networks.llm.generation import generate
+from pureml.neural_networks.llm.gpt import TinyGPT
+from pureml.neural_networks.llm.tokenizer import (
     DEFAULT_CHARACTERS,
     CharacterTokenizer,
 )

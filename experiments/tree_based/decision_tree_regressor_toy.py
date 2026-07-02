@@ -1,7 +1,7 @@
 import numpy as np
 
-from ml_models.metrics.regression import mean_squared_error
-from ml_models.supervised.tree_based.decision_tree_regressor import (
+from pureml.metrics.regression import mean_squared_error
+from pureml.supervised.tree_based.decision_tree_regressor import (
     DecisionTreeRegressor,
 )
 

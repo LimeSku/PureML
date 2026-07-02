@@ -28,12 +28,13 @@ Implemented:
 ## Demos
 
 ```bash
-uv run python experiments/decision_tree_demo.py
-uv run python experiments/nn/mlp.py
-uv run python experiments/nn/iris_mlp.py
-uv run python experiments/nn/mnist_mlp.py
-uv run python experiments/LLM/dataset_demo.py
-uv run python experiments/LLM/tinygpt_demo.py
+uv run python experiments/tree_based/decision_tree_regressor_toy.py
+uv run python experiments/tree_based/decision_tree_classifier_iris.py
+uv run python experiments/neural_networks/mlp_toy.py
+uv run python experiments/neural_networks/mlp_iris.py
+uv run python experiments/neural_networks/mlp_mnist.py
+uv run python experiments/llm/dataset_windows.py
+uv run python experiments/llm/tinygpt_generation.py
 ```
 
 ## Project Structure
@@ -42,9 +43,10 @@ uv run python experiments/LLM/tinygpt_demo.py
 PureML/
 ├── datasets/
 ├── experiments/
-│   ├── LLM/
-│   └── nn/
-└── ml_models/
+│   ├── llm/
+│   ├── neural_networks/
+│   └── tree_based/
+└── pureml/
     ├── metrics/
     ├── model_selection/
     ├── neural_networks/

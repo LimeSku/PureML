@@ -1,7 +1,7 @@
 import numpy as np
 
-from ml_models.neural_networks.llm.embeddings import llmEmbeddingLayer
-from ml_models.neural_networks.llm.transformer import LayerNorm, TransformerBlock
+from pureml.neural_networks.llm.embeddings import llmEmbeddingLayer
+from pureml.neural_networks.llm.transformer import LayerNorm, TransformerBlock
 
 
 class TinyGPT:
