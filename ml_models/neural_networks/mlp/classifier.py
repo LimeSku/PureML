@@ -9,19 +9,23 @@ class MLPClassifier:
     def __init__(
         self,
         input_dim: int,
-        hidden_dim: int,
+        hidden_dims: list[int],
         num_classes: int,
         init_std: float = 0.01,
     ):
-        self.dense1 = DenseLayer(input_dim, hidden_dim, init_std=init_std)
-        self.activation = ReLU()
-        self.dense2 = DenseLayer(hidden_dim, num_classes, init_std=init_std)
+        self.layers = []
+        dims = [input_dim] + hidden_dims + [num_classes]
+        for i in range(len(dims) - 1):
+            self.layers.append(DenseLayer(dims[i], dims[i + 1], init_std=init_std))
+            is_output_layer = i == len(dims) - 2
+            if not is_output_layer:
+                self.layers.append(ReLU())
         self.loss_fn = SoftmaxCrossEntropy()
 
     def forward(self, X: np.ndarray) -> np.ndarray:
-        out = self.dense1(X)
-        out = self.activation(out)
-        out = self.dense2(out)
+        out = X
+        for layer in self.layers:
+            out = layer(out)
         return out
 
     def fit(
@@ -30,11 +34,14 @@ class MLPClassifier:
         y: np.ndarray,
         epochs: int,
         learning_rate: float,
+        X_val: np.ndarray | None = None,
+        y_val: np.ndarray | None = None,
         batch_size: int | None = None,
         log_every: int | None = None,
     ) -> list[float]:
         losses = []
         n_samples = X.shape[0]
+
         if batch_size is None:
             batch_size = n_samples
 
@@ -52,12 +59,13 @@ class MLPClassifier:
                 batch_losses.append(loss)
 
                 # backprop
-                dlogits = self.loss_fn.backward()
-                dout = self.dense2.backward(dlogits)
-                dout2 = self.activation.backward(dout)
-                self.dense1.backward(dout2)
-                self.dense1.step(learning_rate)
-                self.dense2.step(learning_rate)
+                grad = self.loss_fn.backward()
+                for layer in reversed(self.layers):
+                    grad = layer.backward(grad)
+                for layer in self.layers:
+                    if isinstance(layer, DenseLayer):
+                        layer.step(learning_rate=learning_rate)
+
             epoch_loss = float(np.mean(batch_losses))
             losses.append(epoch_loss)
             if log_every is not None and (
@@ -65,11 +73,13 @@ class MLPClassifier:
             ):
                 initial_loss = losses[0]
                 improvement = initial_loss - epoch_loss
-                print(
-                    f"Epoch {epoch + 1}/{epochs} "
-                    f"- loss: {epoch_loss:.6f} "
-                    f"- improvement: {improvement:.6f}"
-                )
+                log_str = f"Epoch {epoch + 1}/{epochs} - loss: {epoch_loss:.6f} - improvement: {improvement:.6f}"
+                if X_val is not None and y_val is not None:
+                    val_prediction = self.predict(X_val)
+                    val_accuracy = np.mean(val_prediction == y_val)
+                    log_str += f" - val_acc: {val_accuracy:.6f}"
+                print(log_str)
+
         return losses
 
     def predict(self, X: np.ndarray) -> np.ndarray:

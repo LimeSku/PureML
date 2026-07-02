@@ -55,13 +55,20 @@ def main() -> None:
 
     model = MLPClassifier(
         input_dim=784,
-        hidden_dim=128,
+        hidden_dims=[128, 64],
         num_classes=10,
         init_std=0.05,
     )
 
     losses = model.fit(
-        X=X_train, y=y_train, epochs=100, learning_rate=0.1, log_every=10, batch_size=32
+        X=X_train,
+        y=y_train,
+        epochs=100,
+        learning_rate=0.05,
+        log_every=10,
+        batch_size=64,
+        X_val=X_test,  # just for test purpose, should not use test set
+        y_val=y_test,
     )
 
     train_predictions = model.predict(X_train)

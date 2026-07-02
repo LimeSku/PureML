@@ -50,7 +50,7 @@ def main() -> None:
 
     model = MLPClassifier(
         input_dim=4,
-        hidden_dim=16,
+        hidden_dims=[16],
         num_classes=len(class_names),
         init_std=0.1,
     )

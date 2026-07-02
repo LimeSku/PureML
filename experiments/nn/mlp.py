@@ -11,7 +11,7 @@ X = np.array([
 
 y = np.array([0, 0, 1, 1])
 
-model = MLPClassifier(input_dim=2, hidden_dim=4, num_classes=2)
+model = MLPClassifier(input_dim=2, hidden_dims=[4], num_classes=2)
 
 losses = model.fit(
     X=X,
