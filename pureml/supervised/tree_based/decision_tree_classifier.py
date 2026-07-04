@@ -12,7 +12,12 @@ import numpy as np
 
 class Node:
     def __init__(
-        self, feature_index=None, threshold=None, left=None, right=None, value=None
+        self,
+        feature_index=None,
+        threshold=None,
+        left=None,
+        right=None,
+        value=None,
     ):
         # index of the feature used for the split
         # feature_index = 2 => split using X[:, 2]
@@ -34,19 +39,31 @@ class Node:
 
 
 class DecisionTreeClassifier:
-    def __init__(self, max_depth=3, min_samples_split=2):
+    def __init__(
+        self,
+        max_depth=3,
+        min_samples_split=2,
+        max_features: int | None = None,
+        random_state: int | None = None,
+    ):
         # maximum depth allowed for the tree
         # higher depth => more complex trees but more prone to overfitting
         self.max_depth = max_depth
         # min number of samples needed to try a new split
         # if a node has fewer samples than this, it becomes a leaf
         self.min_samples_split = min_samples_split
+
+        self.max_features = max_features
+        self.random_state = random_state
+
+        self.rng = None
         # root node of the tree, created at fit() time
         self.root = None
 
     def fit(self, X, y):
         X = np.asarray(X)
         y = np.asarray(y)
+        self.rng = np.random.default_rng(self.random_state)
         self.root = self._build_tree(X, y, depth=0)
         return self
 
@@ -104,8 +121,13 @@ class DecisionTreeClassifier:
         n_samples, n_features = X.shape
         best_gini = float("inf")
         best_split = None
-
-        for feature_index in range(n_features):
+        n_candidate_features = self._resolve_max_features(n_features)
+        candidate_features = self.rng.choice(
+            n_features,
+            size=n_candidate_features,
+            replace=False,
+        )
+        for feature_index in candidate_features:  # range(n_features):
             # candidate thresholds (for the split value) are the unique values of that feature
             # => simple and NOT optimized
             thresholds = np.unique(X[:, feature_index])
@@ -125,6 +147,14 @@ class DecisionTreeClassifier:
                         "threshold": threshold,
                     }
         return best_split
+
+    def _resolve_max_features(self, n_features: int) -> int:
+        if self.max_features is None:
+            return n_features
+        # TODO: move to init, not data dependent
+        if self.max_features <= 0:
+            raise ValueError("max_features must be positive")
+        return min(self.max_features, n_features)
 
     def _weighted_gini(self, y_left, y_right):
         """
