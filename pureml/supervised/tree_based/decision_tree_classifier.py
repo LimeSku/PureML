@@ -130,7 +130,11 @@ class DecisionTreeClassifier:
         for feature_index in candidate_features:  # range(n_features):
             # candidate thresholds (for the split value) are the unique values of that feature
             # => simple and NOT optimized
-            thresholds = np.unique(X[:, feature_index])
+            unique_values = np.unique(X[:, feature_index])
+            if len(unique_values) <= 1:
+                continue
+            thresholds = (unique_values[:-1] + unique_values[1:]) / 2
+
             for threshold in thresholds:
                 left_indices = X[:, feature_index] <= threshold
                 right_indices = X[:, feature_index] > threshold
