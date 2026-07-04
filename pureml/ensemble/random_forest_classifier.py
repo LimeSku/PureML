@@ -76,7 +76,7 @@ class RandomForestClassifier:
 
     def predict_proba(self, X):
         if not self.trees:
-            raise ValueError("Model must be fitted before calling predict")
+            raise ValueError("Model must be fitted before calling predict_proba")
         X = np.asarray(X)
         tree_predictions = np.array([tree.predict(X) for tree in self.trees])
         proba = np.zeros((X.shape[0], len(self.classes_)))
@@ -118,12 +118,6 @@ class RandomForestClassifier:
                 raise ValueError("max_features must be positive")
             return min(self.max_features, n_features)
         raise ValueError("max_features must be None, int, 'sqrt' or 'log2'")
-
-    def _majority_vote(self, predictions):
-        pass
-
-    def _average_predictions(self, predictions):
-        pass
 
     def _most_common_class(self, y: np.ndarray):
         classes, counts = np.unique(y, return_counts=True)
