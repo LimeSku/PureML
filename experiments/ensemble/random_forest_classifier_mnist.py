@@ -72,6 +72,7 @@ def main() -> None:
     print(f"Test samples: {len(X_test)}")
     print(f"Trees: {model.n_estimators}")
     print(f"Max depth: {model.max_depth}")
+    print(f"OOB score: {model.oob_score_}")
     print(f"Train accuracy: {accuracy(y_train, train_predictions):.3f}")
     print(f"Test accuracy: {accuracy(y_test, test_predictions):.3f}")
     print(f"Elapsed: {elapsed:.3f}s")
