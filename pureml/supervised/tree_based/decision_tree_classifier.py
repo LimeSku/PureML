@@ -83,7 +83,7 @@ class DecisionTreeClassifier:
         return importances / total
 
     def _collect_feature_importances(self, node: Node, importances: np.ndarray):
-        if not Node or node.is_leaf():
+        if node is None or node.is_leaf():
             return
         importances[node.feature_index] += node.impurity_decrease
         self._collect_feature_importances(node.left, importances)
