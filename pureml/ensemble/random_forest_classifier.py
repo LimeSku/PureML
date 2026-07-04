@@ -1,3 +1,5 @@
+from collections.abc import Callable
+
 import numpy as np
 
 from pureml.supervised.tree_based.decision_tree_classifier import DecisionTreeClassifier
@@ -21,7 +23,12 @@ class RandomForestClassifier:
         self.random_state = random_state
         self.trees = []
 
-    def fit(self, X, y):
+    def fit(
+        self,
+        X,
+        y,
+        progress_callback: Callable[[int, int], None] | None = None,
+    ):
         X = np.asarray(X)
         y = np.asarray(y)
         rng = np.random.default_rng(self.random_state)
@@ -51,6 +58,8 @@ class RandomForestClassifier:
             )
             tree.fit(X_sample, y_sample)
             self.trees.append(tree)
+            if progress_callback is not None:
+                progress_callback(i + 1, self.n_estimators)
             if self.bootstrap:
                 all_indices = np.arange(n_samples)
                 oob_indices = np.setdiff1d(all_indices, sampled_indices)

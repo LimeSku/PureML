@@ -25,6 +25,24 @@ Implemented:
   - transformer block
   - random text generation
 
+## Live Training Dashboard (TUI)
+
+A [Textual](https://textual.textualize.io/) terminal UI that trains the models
+live. Pick a model and a dataset from the sidebar, tune the hyperparameters, press
+**Train**, and watch the loss curve (MLP) or the forest grow tree-by-tree (Random
+Forest), then see the final train/test accuracy and a confusion matrix.
+
+```bash
+uv run pureml-tui          # or: uv run python -m pureml.tui
+```
+
+- **Models:** Decision Tree, Random Forest, MLP (grouped by family in the sidebar)
+- **Datasets:** Iris, MNIST
+- **Controls:** `Max train rows` caps the training set (keeps the from-scratch trees
+  responsive on MNIST), plus per-model hyperparameters that update when you switch
+  models — e.g. `Max depth` / `Trees` for the tree models, `Epochs` /
+  `Learning rate` / `Batch size` for the MLP.
+
 ## Demos
 
 ```bash
@@ -46,14 +64,18 @@ PureML/
 │   ├── llm/
 │   ├── neural_networks/
 │   └── tree_based/
+├── tests/
 └── pureml/
+    ├── datasets/          # shared Iris / MNIST loaders
+    ├── ensemble/
     ├── metrics/
     ├── model_selection/
     ├── neural_networks/
     │   ├── llm/
     │   └── mlp/
-    └── supervised/
-        └── tree_based/
+    ├── supervised/
+    │   └── tree_based/
+    └── tui/               # Textual live training dashboard
 ```
 
 

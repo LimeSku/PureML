@@ -76,7 +76,7 @@ def main() -> None:
 
     model = RandomForestClassifier(
         n_estimators=200,
-        max_depth=4,
+        max_depth=5,
         min_samples_split=2,
         max_features="sqrt",
         bootstrap=True,
