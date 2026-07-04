@@ -52,8 +52,8 @@ def main() -> None:
     )
 
     model = RandomForestClassifier(
-        n_estimators=400,
-        max_depth=5,
+        n_estimators=500,
+        max_depth=4,
         min_samples_split=2,
         bootstrap=True,
         random_state=42,
@@ -73,6 +73,7 @@ def main() -> None:
     print(f"Test accuracy: {accuracy(y_test, test_predictions):.3f}")
     print(f"Elapsed: {elapsed:.3f}s")
     print_aligned_results(test_predictions, y_test)
+    print(model.feature_importances_)
 
 
 if __name__ == "__main__":

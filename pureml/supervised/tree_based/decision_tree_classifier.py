@@ -18,6 +18,7 @@ class Node:
         left=None,
         right=None,
         value=None,
+        impurity_decrease=0.0,
     ):
         # index of the feature used for the split
         # feature_index = 2 => split using X[:, 2]
@@ -33,6 +34,7 @@ class Node:
         # prediction value for a leaf node
         # not null only when node is a leaf
         self.value = value
+        self.impurity_decrease = impurity_decrease
 
     def is_leaf(self):
         return self.value is not None
@@ -65,11 +67,27 @@ class DecisionTreeClassifier:
         y = np.asarray(y)
         self.rng = np.random.default_rng(self.random_state)
         self.root = self._build_tree(X, y, depth=0)
+
         return self
 
     def predict(self, X):
         X = np.asarray(X)
         return np.array([self._predict_one(x, self.root) for x in X])
+
+    def feature_importances(self, n_features: int) -> np.ndarray:
+        importances = np.zeros(n_features)
+        self._collect_feature_importances(self.root, importances)
+        total = np.sum(importances)
+        if total == 0:
+            return importances
+        return importances / total
+
+    def _collect_feature_importances(self, node: Node, importances: np.ndarray):
+        if not Node or node.is_leaf():
+            return
+        importances[node.feature_index] += node.impurity_decrease
+        self._collect_feature_importances(node.left, importances)
+        self._collect_feature_importances(node.right, importances)
 
     def _build_tree(self, X, y, depth):
         """
@@ -108,6 +126,7 @@ class DecisionTreeClassifier:
             threshold=best_split["threshold"],
             left=left,
             right=right,
+            impurity_decrease=best_split["impurity_decrease"],
         )
 
     def _find_best_split(self, X, y):
@@ -127,6 +146,7 @@ class DecisionTreeClassifier:
             size=n_candidate_features,
             replace=False,
         )
+        parent_gini = self._gini(y)
         for feature_index in candidate_features:  # range(n_features):
             # candidate thresholds (for the split value) are the unique values of that feature
             # => simple and NOT optimized
@@ -146,11 +166,15 @@ class DecisionTreeClassifier:
                 gini = self._weighted_gini(y[left_indices], y[right_indices])
                 if gini < best_gini:
                     best_gini = gini
+                    impurity_decrease = parent_gini - gini
                     best_split = {
                         "feature_index": feature_index,
                         "threshold": threshold,
+                        "impurity_decrease": impurity_decrease,
                     }
         return best_split
+
+    # def _find_best_split_numba(self, X,y, candidate_features):
 
     def _resolve_max_features(self, n_features: int) -> int:
         if self.max_features is None:

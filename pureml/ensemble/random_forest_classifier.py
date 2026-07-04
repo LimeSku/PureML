@@ -30,6 +30,7 @@ class RandomForestClassifier:
         n_features = X.shape[1]
         self.oob_votes_ = [[] for _ in range(n_samples)]
         tree_max_features = self._resolve_max_features(n_features)
+        self.classes_ = np.unique(y)
 
         for i in range(self.n_estimators):
             if self.bootstrap:
@@ -58,6 +59,8 @@ class RandomForestClassifier:
                     for sampled_index, prediction in zip(oob_indices, oob_predictions):
                         self.oob_votes_[sampled_index].append(prediction)
         self.oob_score_ = self._compute_oob_score(y) if self.bootstrap else None
+        self.feature_importances_ = self._compute_feature_importances(X.shape[1])
+
         return self
 
     def predict(self, X):
@@ -70,6 +73,21 @@ class RandomForestClassifier:
             sample_predictions = tree_predictions[:, sample_index]
             predictions.append(self._most_common_class(sample_predictions))
         return np.array(predictions)
+
+    def predict_proba(self, X):
+        if not self.trees:
+            raise ValueError("Model must be fitted before calling predict")
+        X = np.asarray(X)
+        tree_predictions = np.array([tree.predict(X) for tree in self.trees])
+        proba = np.zeros((X.shape[0], len(self.classes_)))
+
+        for sample_index in range(X.shape[0]):
+            sample_predictions = tree_predictions[:, sample_index]
+            for class_index, class_label in enumerate(self.classes_):
+                proba[sample_index, class_index] = np.mean(
+                    sample_predictions == class_label
+                )
+        return proba
 
     def _bootstrap_sample(self, X: np.ndarray, y: np.ndarray, rng: np.random.Generator):
         n_samples = X.shape[0]
@@ -110,3 +128,15 @@ class RandomForestClassifier:
     def _most_common_class(self, y: np.ndarray):
         classes, counts = np.unique(y, return_counts=True)
         return classes[np.argmax(counts)]
+
+    def _compute_feature_importances(self, n_features: int):
+        if not self.trees:
+            return np.zeros(n_features)
+        importances = np.array([
+            tree.feature_importances(n_features) for tree in self.trees
+        ])
+        forest_importances = np.mean(importances, axis=0)
+        total = np.sum(forest_importances)
+        if total == 0:
+            return forest_importances
+        return forest_importances / total
