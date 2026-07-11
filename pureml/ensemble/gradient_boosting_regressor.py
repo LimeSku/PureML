@@ -11,14 +11,18 @@ class GradientBoostingRegressor:
         learning_rate: float = 0.1,
         max_depth: int = 3,
         min_samples_split: int = 2,
+        min_samples_leaf: int = 5,
         subsample: float = 1.0,
+        max_thresholds: int | None = 32,
         random_state: int = 42,
     ):
         self.n_estimators = n_estimators
         self.learning_rate = learning_rate
         self.max_depth = max_depth
         self.min_samples_split = min_samples_split
+        self.min_samples_leaf = min_samples_leaf
         self.subsample = subsample
+        self.max_thresholds = max_thresholds
         self.random_state = random_state
 
         self.trees = []
@@ -56,7 +60,8 @@ class GradientBoostingRegressor:
             tree = DecisionTreeRegressor(
                 max_depth=self.max_depth,
                 min_samples_split=self.min_samples_split,
-                max_thresholds=32,
+                min_samples_leaf=self.min_samples_leaf,
+                max_thresholds=self.max_thresholds,
             )
             tree.fit(X[sample_indices], residual[sample_indices])
             current_prediction += self.learning_rate * tree.predict(X)
@@ -77,6 +82,7 @@ class GradientBoostingRegressor:
                     if rounds_without_improvement >= early_stopping_rounds:
                         self.trees = self.trees[: self.best_iteration_]
                         break
+        self.feature_importances_ = self._compute_feature_importances(X.shape[1])
         return self
 
     def predict(self, X):
@@ -94,3 +100,15 @@ class GradientBoostingRegressor:
         for tree in self.trees:
             prediction += self.learning_rate * tree.predict(X)
             yield prediction.copy()
+
+    def _compute_feature_importances(self, n_features: int) -> np.ndarray:
+        if not self.trees:
+            return np.zeros(n_features)
+        importances = np.array([
+            tree.feature_importances(n_features) for tree in self.trees
+        ])
+        importances = np.mean(importances, axis=0)
+        total = np.sum(importances)
+        if total == 0:
+            return importances
+        return importances / total

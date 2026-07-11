@@ -8,6 +8,17 @@ from pureml.metrics.regression import root_mean_squared_error
 from pureml.model_selection.train_test_split import train_test_split
 from pureml.supervised.tree_based.decision_tree_regressor import DecisionTreeRegressor
 
+concrete_feature_names = [
+    "cement",
+    "blast_furnace_slag",
+    "fly_ash",
+    "water",
+    "superplasticizer",
+    "coarse_aggregate",
+    "fine_aggregate",
+    "age",
+]
+
 
 def make_toy_regression(
     n_samples: int = 160,
@@ -22,17 +33,8 @@ def make_toy_regression(
 
 def load_concrete(path: Path) -> tuple[np.ndarray, np.ndarray]:
     data = np.genfromtxt(path, delimiter=",", names=True)
-    feature_names = [
-        "cement",
-        "blast_furnace_slag",
-        "fly_ash",
-        "water",
-        "superplasticizer",
-        "coarse_aggregate",
-        "fine_aggregate",
-        "age",
-    ]
-    X = np.column_stack([data[name] for name in feature_names])
+
+    X = np.column_stack([data[name] for name in concrete_feature_names])
     y = data["compressive_strength"]
     return X, y
 
@@ -93,7 +95,8 @@ def main() -> None:
     tree.fit(X_train, y_train)
     print_score("Single shallow tree", y_test, tree.predict(X_test))
 
-    for n_estimators in [1, 5, 20, 80, 200]:
+    # for n_estimators in [1, 5, 20, 80, 200]:
+    for n_estimators in [1, 200]:
         model = GradientBoostingRegressor(
             n_estimators=n_estimators, learning_rate=0.1, max_depth=5
         )
@@ -117,7 +120,12 @@ def main() -> None:
     print()
     print(f"Best validation round: {best_iteration} trees")
     print_score("GBDT best val stage", y_test, best_test_prediction)
-    print_score(f"GBDT stopped {len(model.trees):>3} trees", y_test, model.predict(X_test))
+    print_score(
+        f"GBDT stopped {len(model.trees):>3} trees", y_test, model.predict(X_test)
+    )
+
+    for feature, importance in zip(concrete_feature_names, model.feature_importances_):
+        print(f"{feature:20}\t{importance}")
 
 
 if __name__ == "__main__":

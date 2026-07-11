@@ -12,7 +12,13 @@ import numpy as np
 
 class Node:
     def __init__(
-        self, feature_index=None, threshold=None, left=None, right=None, value=None
+        self,
+        feature_index=None,
+        threshold=None,
+        left=None,
+        right=None,
+        value=None,
+        impurity_decrease=None,
     ):
         # index of the feature used for the split
         # feature_index = 2 => split using X[:, 2]
@@ -28,6 +34,7 @@ class Node:
         # prediction value for a leaf node
         # not null only when node is a leaf
         self.value = value
+        self.impurity_decrease = impurity_decrease
 
     def is_leaf(self):
         return self.value is not None
@@ -68,6 +75,21 @@ class DecisionTreeRegressor:
         X = np.asarray(X)
         return np.array([self._predict_one(x, self.root) for x in X])
 
+    def feature_importances(self, n_features: int) -> np.ndarray:
+        importances = np.zeros(n_features)
+        self._collect_feature_importances(self.root, importances)
+        total = np.sum(importances)
+        if total == 0:
+            return importances
+        return importances / total
+
+    def _collect_feature_importances(self, node: Node, importances: np.ndarray):
+        if node is None or node.is_leaf():
+            return
+        importances[node.feature_index] += node.impurity_decrease
+        self._collect_feature_importances(node.left, importances)
+        self._collect_feature_importances(node.right, importances)
+
     def _build_tree(self, X, y, depth):
         n_samples = X.shape[0]
 
@@ -101,6 +123,7 @@ class DecisionTreeRegressor:
             threshold=best_split["threshold"],
             left=left,
             right=right,
+            impurity_decrease=best_split["impurity_decrease"],
         )
 
     def _find_best_split(self, X, y):
@@ -120,13 +143,13 @@ class DecisionTreeRegressor:
             size=n_candidate_features,
             replace=False,
         )
-
+        parent_mse = self._mse(y)
         for feature_index in candidate_features:
             # candidate thresholds (for the split value) are the unique values of that feature
             # => simple and NOT optimized
             # thresholds = np.unique(X[:, feature_index])
             if self.max_thresholds:
-                quantiles = np.linspace(0, 1, self.max_thresholds)[1:-1]
+                quantiles = np.linspace(0, 1, self.max_thresholds + 2)[1:-1]
                 thresholds = np.quantile(X[:, feature_index], quantiles)
                 thresholds = np.unique(thresholds)
             else:
@@ -149,11 +172,16 @@ class DecisionTreeRegressor:
                 mse = self._weighted_mse(y[left_indices], y[right_indices])
                 if mse < best_mse:
                     best_mse = mse
+                    impurity_decrease = parent_mse - mse
                     best_split = {
                         "feature_index": feature_index,
                         "threshold": threshold,
+                        "impurity_decrease": impurity_decrease,
                     }
         return best_split
+
+    def _mse(self, y):
+        return np.mean((y - np.mean(y)) ** 2)
 
     def _weighted_mse(self, y_left, y_right):
         """
@@ -165,9 +193,9 @@ class DecisionTreeRegressor:
         n_total = n_left + n_right
 
         # mse of left child
-        mse_left = np.mean((y_left - np.mean(y_left)) ** 2)
+        mse_left = self._mse(y_left)
         # mse right child
-        mse_right = np.mean((y_right - np.mean(y_right)) ** 2)
+        mse_right = self._mse(y_right)  # np.mean((y_right - np.mean(y_right)) ** 2)
 
         return mse_left * (n_left / n_total) + mse_right * (n_right / n_total)
 
