@@ -61,18 +61,22 @@ class DecisionTreeClassifier:
         self.rng = None
         # root node of the tree, created at fit() time
         self.root = None
+        self.classes_ = None
 
     def fit(self, X, y):
         X = np.asarray(X)
         y = np.asarray(y)
         self.rng = np.random.default_rng(self.random_state)
-        self.root = self._build_tree(X, y, depth=0)
+        self.classes_, y_encoded = np.unique(y, return_inverse=True)
+        # print(self.classes_)
+        self.root = self._build_tree(X, y_encoded, depth=0)
 
         return self
 
     def predict(self, X):
         X = np.asarray(X)
-        return np.array([self._predict_one(x, self.root) for x in X])
+        encoded_prediction = np.array([self._predict_one(x, self.root) for x in X])
+        return self.classes_[encoded_prediction]
 
     def feature_importances(self, n_features: int) -> np.ndarray:
         importances = np.zeros(n_features)
@@ -203,7 +207,8 @@ class DecisionTreeClassifier:
 
         A pure node has Gini 0. Higher values mean classes are more mixed.
         """
-        _, counts = np.unique(y, return_counts=True)
+        # _, counts = np.unique(y, return_counts=True)
+        counts = np.bincount(y, minlength=len(self.classes_))
         gini = 1 - sum((counts / len(y)) ** 2)
         return gini
 
@@ -221,5 +226,7 @@ class DecisionTreeClassifier:
         """
         Return the majority class among samples that reached a leaf.
         """
-        classes, counts = np.unique(y, return_counts=True)
-        return classes[np.argmax(counts)]
+        counts = np.bincount(y, minlength=len(self.classes_))
+        return int(np.argmax(counts))
+        # classes, counts = np.unique(y, return_counts=True)
+        # return classes[np.argmax(counts)]
