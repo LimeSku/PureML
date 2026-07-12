@@ -12,8 +12,8 @@ class GradientBoostingRegressor:
         max_depth: int = 3,
         min_samples_split: int = 2,
         min_samples_leaf: int = 5,
-        subsample: float = 1.0,
         max_thresholds: int | None = 32,
+        subsample: float = 1.0,
         random_state: int = 42,
     ):
         self.n_estimators = n_estimators
@@ -21,8 +21,8 @@ class GradientBoostingRegressor:
         self.max_depth = max_depth
         self.min_samples_split = min_samples_split
         self.min_samples_leaf = min_samples_leaf
-        self.subsample = subsample
         self.max_thresholds = max_thresholds
+        self.subsample = subsample
         self.random_state = random_state
 
         self.trees = []
@@ -35,6 +35,10 @@ class GradientBoostingRegressor:
         y_val=None,
         early_stopping_rounds: int | None = None,
     ):
+        if (X_val is None) != (y_val is None):
+            raise ValueError("X_val and y_val must be provided together")
+        if early_stopping_rounds is not None and X_val is None:
+            raise ValueError("early_stopping_rounds requires X_val and y_val")
         X = np.asarray(X)
         y = np.asarray(y)
 
@@ -45,6 +49,9 @@ class GradientBoostingRegressor:
         self.init_prediction_ = float(np.mean(y))
         current_prediction = np.full(len(y), self.init_prediction_)
         if X_val is not None:
+            X_val = np.asarray(X_val)
+            y_val = np.asarray(y_val)
+
             val_pred = np.full(len(y_val), self.init_prediction_)
             self.validation_loss_ = []
             self.best_validation_loss = float("inf")
