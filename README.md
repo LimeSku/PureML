@@ -100,9 +100,13 @@ PureML/
 ### Tree-Based Models
 
 - [x] Decision Tree Regressor
-- [ ] Decision Tree Classifier
+- [x] Decision Tree Classifier
+- [x] Random Forest Classifier
 - [ ] Random Forest Regressor
-- [ ] Gradient Boosting Regressor
+- [x] Gradient Boosting Regressor
+- [x] Gradient Boosting Classifier
+- [x] XGBoost-like Regressor
+- [ ] XGBoost-like Classifier
 
 ### Neural Networks
 
