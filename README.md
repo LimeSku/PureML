@@ -11,19 +11,26 @@ Implemented:
   - Root Mean Squared Error
   - Mean Absolute Error
 - Basic train/test split utility
-- `DecisionTreeRegressor`
+- Tree-based models:
+  - Decision Tree Regressor / Classifier
+  - Random Forest Classifier
+  - Gradient Boosting Regressor / Classifier
+  - XGBoost-like Regressor
 - Basic neural network components:
   - dense layer
   - ReLU
   - softmax cross-entropy
   - MLP classifier with backpropagation
-- TinyGPT-style forward-pass components:
+- TinyGPT-style language model components:
   - character tokenizer
   - language-model dataset
   - embeddings
   - causal self-attention
   - transformer block
-  - random text generation
+  - next-token cross-entropy
+  - NumPy backpropagation
+  - Adam training loop
+  - text generation
 
 ## Live Training Dashboard (TUI)
 
@@ -51,8 +58,22 @@ uv run python experiments/tree_based/decision_tree_classifier_iris.py
 uv run python experiments/neural_networks/mlp_toy.py
 uv run python experiments/neural_networks/mlp_iris.py
 uv run python experiments/neural_networks/mlp_mnist.py
+uv run python experiments/ensemble/gradient_boosting_regressor_demo.py
+uv run python experiments/ensemble/gradient_boosting_classifier_demo.py
+uv run python experiments/ensemble/xgboost_regressor_demo.py
 uv run python experiments/llm/dataset_windows.py
 uv run python experiments/llm/tinygpt_generation.py
+uv run python experiments/llm/tinygpt_training.py
+uv run python experiments/llm/tinygpt_tiny_shakespeare.py
+```
+
+## Model Notes
+
+```text
+docs/models/gradient_boosting_regressor.md
+docs/models/xgboost_regressor.md
+docs/models/random_forest_classifier.md
+docs/models/mlp_classifier.md
 ```
 
 ## Project Structure
@@ -71,8 +92,10 @@ PureML/
     ├── metrics/
     ├── model_selection/
     ├── nn/
+    │   ├── cnn/
     │   ├── llm/
     │   └── mlp/
+    ├── optimizer/
     ├── supervised/
     │   └── tree_based/
     └── tui/               # Textual live training dashboard
@@ -115,6 +138,7 @@ PureML/
 - [x] Softmax cross-entropy
 - [x] MLP classifier
 - [x] Mini-batch training
+- [ ] CNN classifier
 - [ ] Clean up the flexible multi-layer MLP API
 - [ ] Add simple tests
 - [ ] Try regularization on MNIST
@@ -127,5 +151,9 @@ PureML/
 - [x] Causal self-attention
 - [x] Transformer block
 - [x] TinyGPT forward pass
-- [ ] Add cross-entropy loss demo
-- [ ] Decide whether training stays NumPy or moves to PyTorch
+- [x] Next-token cross-entropy
+- [x] TinyGPT NumPy backpropagation
+- [x] Adam optimizer
+- [x] Tiny Shakespeare training demo
+- [ ] Save/load TinyGPT weights
+- [ ] Mini-batch TinyGPT training
