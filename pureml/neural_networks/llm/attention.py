@@ -23,7 +23,39 @@ class CausalSelfAttentionHead:
         attention_scores[mask] = -np.inf
         attention_weights = self._softmax(attention_scores)
 
+        self.x = x
+        self.Q = Q
+        self.K = K
+        self.V = V
+        self.scores = attention_scores
+        self.mask = mask
+        self.weights = attention_weights
         return attention_weights @ V
+
+    def backward(self, dout):
+        dweights = dout @ self.V.T
+        dV = self.weights.T @ dout
+        dscores = self.weights * (
+            dweights - np.sum(dweights * self.weights, axis=-1, keepdims=True)
+        )
+        dscores[self.mask] = 0.0
+        dscores = dscores / np.sqrt(self.head_dim)
+        dQ = dscores @ self.K
+        dK = dscores.T @ self.Q
+
+        self.dW_query = self.x.T @ dQ
+        self.dW_key = self.x.T @ dK
+        self.dW_value = self.x.T @ dV
+
+        # dX = sum(gradients from all paths)
+        dx = dQ @ self.W_query.T + dK @ self.W_key.T + dV @ self.W_value.T
+
+        return dx
+
+    def step(self, learning_rate: float) -> None:
+        self.W_query -= learning_rate * self.dW_query
+        self.W_key -= learning_rate * self.dW_key
+        self.W_value -= learning_rate * self.dW_value
 
     def _softmax(self, x: np.ndarray) -> np.ndarray:
         x = x - np.max(x, axis=-1, keepdims=True)
@@ -57,7 +89,22 @@ class MultiHeadCausalSelfAttention:
     def forward(self, x: np.ndarray) -> np.ndarray:
         head_outputs = [head(x) for head in self.heads]
         concatenated = np.concatenate(head_outputs, axis=1)
+        self.concatenated = concatenated
         return concatenated @ self.W_output
+
+    def backward(self, dout):
+        self.dW_output = self.concatenated.T @ dout
+        dconcatenated = dout @ self.W_output.T
+        head_grads = np.split(dconcatenated, self.num_heads, axis=1)
+        dx = sum(
+            head.backward(head_grad) for head, head_grad in zip(self.heads, head_grads)
+        )
+        return dx
+
+    def step(self, learning_rate: float) -> None:
+        self.W_output -= learning_rate * self.dW_output
+        for head in self.heads:
+            head.step(learning_rate)
 
     def __call__(self, x: np.ndarray) -> np.ndarray:
         return self.forward(x)

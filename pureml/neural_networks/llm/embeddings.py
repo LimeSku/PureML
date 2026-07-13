@@ -18,7 +18,16 @@ class Embedding:
         )
 
     def forward(self, token_ids: list[int]) -> np.ndarray:
+        self.token_ids = token_ids
         return self.weights[token_ids]
+
+    def backward(self, dout: np.ndarray) -> None:
+        self.dweights = np.zeros_like(self.weights)
+        for token_id, grad in zip(self.token_ids, dout):
+            self.dweights[token_id] += grad
+
+    def step(self, learning_rate: float) -> None:
+        self.weights -= learning_rate * self.dweights
 
     def __call__(self, token_ids: list[int]):
         return self.forward(token_ids)
@@ -34,6 +43,14 @@ class llmEmbeddingLayer:
         token_embeddings = self.token_embedding_layer(token_ids)
         pos_embeddings = self.pos_embedding_layer(positions)
         return token_embeddings + pos_embeddings
+
+    def backward(self, dout: np.ndarray) -> None:
+        self.token_embedding_layer.backward(dout)
+        self.pos_embedding_layer.backward(dout)
+
+    def step(self, learning_rate: float) -> None:
+        self.token_embedding_layer.step(learning_rate)
+        self.pos_embedding_layer.step(learning_rate)
 
     def __call__(self, token_ids: list[int]) -> np.ndarray:
         return self.forward(token_ids)
