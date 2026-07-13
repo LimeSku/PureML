@@ -1,8 +1,8 @@
 import numpy as np
 
-from pureml.neural_networks.mlp.activations import ReLU
-from pureml.neural_networks.mlp.layers import DenseLayer
-from pureml.neural_networks.mlp.losses import SoftmaxCrossEntropy
+from pureml.nn.mlp.activations import ReLU
+from pureml.nn.mlp.layers import DenseLayer
+from pureml.nn.mlp.losses import SoftmaxCrossEntropy
 
 
 class MLPClassifier:

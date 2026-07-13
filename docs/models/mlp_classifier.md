@@ -57,9 +57,9 @@ pass gradient only where input > 0
 ## In Code
 
 ```text
-pureml/neural_networks/mlp/classifier.py
-pureml/neural_networks/mlp/layers.py
-pureml/neural_networks/mlp/losses.py
+pureml/nn/mlp/classifier.py
+pureml/nn/mlp/layers.py
+pureml/nn/mlp/losses.py
 experiments/neural_networks/mlp_mnist.py
 ```
 

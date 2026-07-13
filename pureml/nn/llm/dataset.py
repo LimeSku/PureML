@@ -1,4 +1,4 @@
-from pureml.neural_networks.llm.tokenizer import CharacterTokenizer
+from pureml.nn.llm.tokenizer import CharacterTokenizer
 
 
 class llmDataset:

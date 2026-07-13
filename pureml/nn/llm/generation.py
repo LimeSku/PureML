@@ -1,6 +1,6 @@
 import numpy as np
 
-from pureml.neural_networks.llm.gpt import TinyGPT
+from pureml.nn.llm.gpt import TinyGPT
 
 
 def softmax(x: np.ndarray) -> np.ndarray:

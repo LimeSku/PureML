@@ -1,7 +1,7 @@
 import numpy as np
 
-from pureml.neural_networks.llm.embeddings import llmEmbeddingLayer
-from pureml.neural_networks.llm.transformer import LayerNorm, TransformerBlock
+from pureml.nn.llm.embeddings import llmEmbeddingLayer
+from pureml.nn.llm.transformer import LayerNorm, TransformerBlock
 
 
 def clip_gradients(parameters_and_gradients, max_norm: float) -> None:

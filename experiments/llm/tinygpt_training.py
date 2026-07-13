@@ -1,10 +1,10 @@
 import numpy as np
 
-from pureml.neural_networks.llm.dataset import llmDataset
-from pureml.neural_networks.llm.generation import generate
-from pureml.neural_networks.llm.gpt import TinyGPT
-from pureml.neural_networks.llm.losses import SequenceCrossEntropy
-from pureml.neural_networks.llm.tokenizer import CharacterTokenizer
+from pureml.nn.llm.dataset import llmDataset
+from pureml.nn.llm.generation import generate
+from pureml.nn.llm.gpt import TinyGPT
+from pureml.nn.llm.losses import SequenceCrossEntropy
+from pureml.nn.llm.tokenizer import CharacterTokenizer
 
 
 def clip_gradients(parameters_and_gradients, max_norm: float) -> None:

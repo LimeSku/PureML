@@ -16,7 +16,7 @@ import numpy as np
 from pureml.datasets import standardize
 from pureml.ensemble.random_forest_classifier import RandomForestClassifier
 from pureml.metrics.classification import accuracy_score, confusion_matrix
-from pureml.neural_networks.mlp.classifier import MLPClassifier
+from pureml.nn.mlp.classifier import MLPClassifier
 from pureml.supervised.tree_based.decision_tree_classifier import DecisionTreeClassifier
 
 

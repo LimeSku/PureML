@@ -4,7 +4,7 @@ from struct import unpack
 
 import numpy as np
 
-from pureml.neural_networks.mlp.classifier import MLPClassifier
+from pureml.nn.mlp.classifier import MLPClassifier
 
 
 def load_mnist_images(path: Path) -> np.ndarray:

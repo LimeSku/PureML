@@ -3,7 +3,7 @@ from pathlib import Path
 import numpy as np
 
 from pureml.model_selection.train_test_split import train_test_split
-from pureml.neural_networks.mlp.classifier import MLPClassifier
+from pureml.nn.mlp.classifier import MLPClassifier
 
 
 def load_iris(path: Path) -> tuple[np.ndarray, np.ndarray, list[str]]:

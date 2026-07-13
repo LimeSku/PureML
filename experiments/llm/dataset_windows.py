@@ -1,5 +1,5 @@
-from pureml.neural_networks.llm.dataset import llmDataset
-from pureml.neural_networks.llm.tokenizer import CharacterTokenizer
+from pureml.nn.llm.dataset import llmDataset
+from pureml.nn.llm.tokenizer import CharacterTokenizer
 
 
 def main() -> None:

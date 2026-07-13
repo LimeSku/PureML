@@ -3,25 +3,12 @@ from pathlib import Path
 
 import numpy as np
 
-from pureml.neural_networks.llm.generation import generate
-from pureml.neural_networks.llm.gpt import TinyGPT
-from pureml.neural_networks.llm.losses import SequenceCrossEntropy
-from pureml.neural_networks.llm.tokenizer import CharacterTokenizer
+from pureml.nn.llm.generation import generate
+from pureml.nn.llm.gpt import TinyGPT
+from pureml.nn.llm.losses import SequenceCrossEntropy
+from pureml.nn.llm.tokenizer import CharacterTokenizer
+from pureml.nn.llm.training import clip_gradients
 from pureml.optimizer.adam import Adam
-
-
-def clip_gradients(parameters_and_gradients, max_norm: float) -> None:
-    total_norm_squared = 0.0
-    for _, grad in parameters_and_gradients:
-        total_norm_squared += np.sum(grad**2)
-
-    total_norm = np.sqrt(total_norm_squared)
-    if total_norm <= max_norm:
-        return
-
-    scale = max_norm / (total_norm + 1e-12)
-    for _, grad in parameters_and_gradients:
-        grad *= scale
 
 
 def parse_args() -> argparse.Namespace:

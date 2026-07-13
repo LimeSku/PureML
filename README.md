@@ -70,7 +70,7 @@ PureML/
     ├── ensemble/
     ├── metrics/
     ├── model_selection/
-    ├── neural_networks/
+    ├── nn/
     │   ├── llm/
     │   └── mlp/
     ├── supervised/
