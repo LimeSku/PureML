@@ -13,16 +13,26 @@ def generate(
     model: TinyGPT,
     token_ids: list[int],
     max_new_tokens: int,
+    temperature: float = 1.0,
+    top_k: int | None = None,
 ) -> list[int]:
     generated = list(token_ids)
-
+    if temperature <= 0:
+        raise ValueError("temperature must be positive")
+    if top_k is not None and top_k <= 0:
+        raise ValueError("top_k must be positive")
     for _ in range(max_new_tokens):
         context = generated[-model.ctx_length :]
         logits = model(context)
 
-        next_token_logits = logits[-1]
+        next_token_logits = logits[-1] / temperature
+        if top_k is not None:
+            k = min(top_k, len(next_token_logits))
+            top_indices = np.argpartition(next_token_logits, -k)[-k:]
+            masked_logits = np.full_like(next_token_logits, -np.inf)
+            masked_logits[top_indices] = next_token_logits[top_indices]
+            next_token_logits = masked_logits
         probs = softmax(next_token_logits)
-
         next_token_id = int(np.random.choice(len(probs), p=probs))
         generated.append(next_token_id)
 

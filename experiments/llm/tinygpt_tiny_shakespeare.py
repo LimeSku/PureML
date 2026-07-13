@@ -80,6 +80,8 @@ def main() -> None:
         model=model,
         token_ids=prompt_ids,
         max_new_tokens=args.max_new_tokens,
+        temperature=0.8,
+        top_k=10,
     )
     print()
     print(f"Prompt: {args.prompt!r}")
