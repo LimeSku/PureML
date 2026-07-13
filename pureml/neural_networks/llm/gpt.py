@@ -3,6 +3,9 @@ import numpy as np
 from pureml.neural_networks.llm.embeddings import llmEmbeddingLayer
 from pureml.neural_networks.llm.transformer import LayerNorm, TransformerBlock
 
+# def clip_gradients(parameters_and_gradients,max_norm:float)->None:
+#     total_norm_squared =
+
 
 class TinyGPT:
     def __init__(
@@ -69,6 +72,21 @@ class TinyGPT:
             block.step(learning_rate)
 
         self.embedding_layer.step(learning_rate)
+
+    def parameters_and_gradients(self):
+        params = [
+            (self.W_output, self.dW_output),
+            (self.b_output, self.db_output),
+        ]
+
+        params += self.final_layer_norm.parameters_and_gradients()
+
+        for block in self.blocks:
+            params += block.parameters_and_gradients()
+
+        params += self.embedding_layer.parameters_and_gradients()
+
+        return params
 
     def __call__(self, token_ids: np.ndarray) -> np.ndarray:
         return self.forward(token_ids)

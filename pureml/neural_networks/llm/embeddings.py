@@ -29,6 +29,11 @@ class Embedding:
     def step(self, learning_rate: float) -> None:
         self.weights -= learning_rate * self.dweights
 
+    def parameters_and_gradients(self):
+        return [
+            (self.weights, self.dweights),
+        ]
+
     def __call__(self, token_ids: list[int]):
         return self.forward(token_ids)
 
@@ -51,6 +56,12 @@ class llmEmbeddingLayer:
     def step(self, learning_rate: float) -> None:
         self.token_embedding_layer.step(learning_rate)
         self.pos_embedding_layer.step(learning_rate)
+
+    def parameters_and_gradients(self):
+        return (
+            self.token_embedding_layer.parameters_and_gradients()
+            + self.pos_embedding_layer.parameters_and_gradients()
+        )
 
     def __call__(self, token_ids: list[int]) -> np.ndarray:
         return self.forward(token_ids)

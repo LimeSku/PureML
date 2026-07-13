@@ -7,11 +7,26 @@ from pureml.neural_networks.llm.losses import SequenceCrossEntropy
 from pureml.neural_networks.llm.tokenizer import CharacterTokenizer
 
 
+def clip_gradients(parameters_and_gradients, max_norm: float) -> None:
+    total_norm_squared = 0.0
+    for _, grad in parameters_and_gradients:
+        total_norm_squared += np.sum(grad**2)
+
+    total_norm = np.sqrt(total_norm_squared)
+    if total_norm <= max_norm:
+        return
+
+    scale = max_norm / (total_norm + 1e-12)
+    for _, grad in parameters_and_gradients:
+        grad *= scale
+
+
 def main() -> None:
     text = "hello world hello world hello world"
     ctx_length = 4
     learning_rate = 0.1
     epochs = 200
+    max_grad_norm = 1.0
 
     tokenizer = CharacterTokenizer().fit(text)
     dataset = llmDataset.from_text(
@@ -40,6 +55,7 @@ def main() -> None:
             dlogits = loss_fn.backward()
 
             model.backward(dlogits)
+            clip_gradients(model.parameters_and_gradients(), max_norm=max_grad_norm)
             model.step(learning_rate=learning_rate)
 
             total_loss += loss

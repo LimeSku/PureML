@@ -62,6 +62,14 @@ class FeedForward:
     def __call__(self, x: np.ndarray) -> np.ndarray:
         return self.forward(x)
 
+    def parameters_and_gradients(self):
+        return [
+            (self.W1, self.dW1),
+            (self.b1, self.db1),
+            (self.W2, self.dW2),
+            (self.b2, self.db2),
+        ]
+
 
 class LayerNorm:
     def __init__(self, embedding_dim: int, eps: float = 1e-5):
@@ -101,6 +109,12 @@ class LayerNorm:
         self.gamma -= learning_rate * self.dgamma
         self.beta -= learning_rate * self.dbeta
 
+    def parameters_and_gradients(self):
+        return [
+            (self.gamma, self.dgamma),
+            (self.beta, self.dbeta),
+        ]
+
 
 class TransformerBlock:
     def __init__(
@@ -119,6 +133,9 @@ class TransformerBlock:
         self.feed_forward = FeedForward(
             embedding_dim=embedding_dim, hidden_dim=hidden_dim, init_std=init_std
         )
+
+    def __call__(self, x: np.ndarray) -> np.ndarray:
+        return self.forward(x)
 
     def forward(self, x: np.ndarray) -> np.ndarray:
         self.attention_residual = x
@@ -151,5 +168,10 @@ class TransformerBlock:
         self.ln2.step(learning_rate)
         self.feed_forward.step(learning_rate)
 
-    def __call__(self, x: np.ndarray) -> np.ndarray:
-        return self.forward(x)
+    def parameters_and_gradients(self):
+        return (
+            self.ln1.parameters_and_gradients()
+            + self.attention.parameters_and_gradients()
+            + self.ln2.parameters_and_gradients()
+            + self.feed_forward.parameters_and_gradients()
+        )

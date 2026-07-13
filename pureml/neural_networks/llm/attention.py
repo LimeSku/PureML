@@ -65,6 +65,13 @@ class CausalSelfAttentionHead:
     def __call__(self, x: np.ndarray) -> np.ndarray:
         return self.forward(x)
 
+    def parameters_and_gradients(self):
+        return [
+            (self.W_query, self.dW_query),
+            (self.W_key, self.dW_key),
+            (self.W_value, self.dW_value),
+        ]
+
 
 class MultiHeadCausalSelfAttention:
     def __init__(self, embedding_dim: int, num_heads: int, init_std: float = 0.02):
@@ -105,6 +112,16 @@ class MultiHeadCausalSelfAttention:
         self.W_output -= learning_rate * self.dW_output
         for head in self.heads:
             head.step(learning_rate)
+
+    def parameters_and_gradients(self):
+        params = [
+            (self.W_output, self.dW_output),
+        ]
+
+        for head in self.heads:
+            params += head.parameters_and_gradients()
+
+        return params
 
     def __call__(self, x: np.ndarray) -> np.ndarray:
         return self.forward(x)

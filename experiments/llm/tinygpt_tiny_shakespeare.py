@@ -7,6 +7,21 @@ from pureml.neural_networks.llm.generation import generate
 from pureml.neural_networks.llm.gpt import TinyGPT
 from pureml.neural_networks.llm.losses import SequenceCrossEntropy
 from pureml.neural_networks.llm.tokenizer import CharacterTokenizer
+from pureml.optimizer.adam import Adam
+
+
+def clip_gradients(parameters_and_gradients, max_norm: float) -> None:
+    total_norm_squared = 0.0
+    for _, grad in parameters_and_gradients:
+        total_norm_squared += np.sum(grad**2)
+
+    total_norm = np.sqrt(total_norm_squared)
+    if total_norm <= max_norm:
+        return
+
+    scale = max_norm / (total_norm + 1e-12)
+    for _, grad in parameters_and_gradients:
+        grad *= scale
 
 
 def parse_args() -> argparse.Namespace:
@@ -19,7 +34,8 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--max-chars", type=int, default=20_000)
     parser.add_argument("--ctx-length", type=int, default=32)
     parser.add_argument("--steps", type=int, default=1_000)
-    parser.add_argument("--learning-rate", type=float, default=0.03)
+    parser.add_argument("--learning-rate", type=float, default=0.001)
+    parser.add_argument("--max-grad-norm", type=float, default=1.0)
     parser.add_argument("--log-every", type=int, default=100)
     parser.add_argument("--prompt", default="ROMEO:")
     parser.add_argument("--max-new-tokens", type=int, default=200)
@@ -42,13 +58,13 @@ def main() -> None:
     model = TinyGPT(
         vocab_size=tokenizer.vocab_size,
         ctx_length=args.ctx_length,
-        embedding_dim=64,
+        embedding_dim=128,
         num_heads=4,
         num_layers=4,
-        hidden_dim=128,
+        hidden_dim=512,
     )
     loss_fn = SequenceCrossEntropy()
-
+    optimizer = Adam(learning_rate=args.learning_rate)
     print(f"Dataset characters: {len(text)}")
     print(f"Training characters: {len(train_text)}")
     print(f"Vocabulary size: {tokenizer.vocab_size}")
@@ -67,8 +83,8 @@ def main() -> None:
         dlogits = loss_fn.backward()
 
         model.backward(dlogits)
-        model.step(learning_rate=args.learning_rate)
-
+        clip_gradients(model.parameters_and_gradients(), max_norm=args.max_grad_norm)
+        optimizer.step(model.parameters_and_gradients())
         running_loss += loss
         if step == 0 or (step + 1) % args.log_every == 0:
             avg_loss = running_loss / min(args.log_every, step + 1)
