@@ -54,6 +54,8 @@ def main() -> None:
         model=model,
         token_ids=tokenizer.encode(prompt),
         max_new_tokens=24,
+        temperature=0.8,
+        top_k=10,
     )
     print()
     print(f"Prompt: {prompt!r}")
