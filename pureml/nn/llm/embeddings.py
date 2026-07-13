@@ -34,6 +34,11 @@ class Embedding:
             (self.weights, self.dweights),
         ]
 
+    def named_parameters(self, prefix: str = ""):
+        return {
+            f"{prefix}weights": self.weights,
+        }
+
     def __call__(self, token_ids: list[int]):
         return self.forward(token_ids)
 
@@ -62,6 +67,14 @@ class llmEmbeddingLayer:
             self.token_embedding_layer.parameters_and_gradients()
             + self.pos_embedding_layer.parameters_and_gradients()
         )
+
+    def named_parameters(self, prefix: str = ""):
+        params = {}
+        params.update(
+            self.token_embedding_layer.named_parameters(f"{prefix}token_embedding.")
+        )
+        params.update(self.pos_embedding_layer.named_parameters(f"{prefix}pos_embedding."))
+        return params
 
     def __call__(self, token_ids: list[int]) -> np.ndarray:
         return self.forward(token_ids)

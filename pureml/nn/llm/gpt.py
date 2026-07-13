@@ -102,5 +102,35 @@ class TinyGPT:
 
         return params
 
+    def named_parameters(self):
+        params = {
+            "W_output": self.W_output,
+            "b_output": self.b_output,
+        }
+
+        params.update(self.final_layer_norm.named_parameters("final_layer_norm."))
+
+        for i, block in enumerate(self.blocks):
+            params.update(block.named_parameters(f"blocks.{i}."))
+
+        params.update(self.embedding_layer.named_parameters("embedding_layer."))
+        return params
+
     def __call__(self, token_ids: np.ndarray) -> np.ndarray:
         return self.forward(token_ids)
+
+    def save_weights(self, path) -> None:
+        np.savez(path, **self.named_parameters())
+
+    def load_weights(self, path) -> None:
+        weights = np.load(path)
+        params = self.named_parameters()
+        for name, param in params.items():
+            if name not in weights:
+                raise ValueError(f"Missing weight: {name}")
+            weight = weights[name]
+            if param.shape != weight.shape:
+                raise ValueError(
+                    f"Shape mismatch for {name}: expected {param.shape}, got {weight.shape}"
+                )
+            param[...] = weight

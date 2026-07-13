@@ -70,6 +70,14 @@ class FeedForward:
             (self.b2, self.db2),
         ]
 
+    def named_parameters(self, prefix: str = ""):
+        return {
+            f"{prefix}W1": self.W1,
+            f"{prefix}b1": self.b1,
+            f"{prefix}W2": self.W2,
+            f"{prefix}b2": self.b2,
+        }
+
 
 class LayerNorm:
     def __init__(self, embedding_dim: int, eps: float = 1e-5):
@@ -114,6 +122,12 @@ class LayerNorm:
             (self.gamma, self.dgamma),
             (self.beta, self.dbeta),
         ]
+
+    def named_parameters(self, prefix: str = ""):
+        return {
+            f"{prefix}gamma": self.gamma,
+            f"{prefix}beta": self.beta,
+        }
 
 
 class TransformerBlock:
@@ -175,3 +189,11 @@ class TransformerBlock:
             + self.ln2.parameters_and_gradients()
             + self.feed_forward.parameters_and_gradients()
         )
+
+    def named_parameters(self, prefix: str = ""):
+        params = {}
+        params.update(self.ln1.named_parameters(f"{prefix}ln1."))
+        params.update(self.attention.named_parameters(f"{prefix}attention."))
+        params.update(self.ln2.named_parameters(f"{prefix}ln2."))
+        params.update(self.feed_forward.named_parameters(f"{prefix}feed_forward."))
+        return params

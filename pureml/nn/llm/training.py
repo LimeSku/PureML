@@ -13,3 +13,23 @@ def clip_gradients(parameters_and_gradients, max_norm: float) -> None:
     scale = max_norm / (total_norm + 1e-12)
     for _, grad in parameters_and_gradients:
         grad *= scale
+
+
+def train_language_model_step(
+    model,
+    loss_fn,
+    optimizer,
+    x: list[int],
+    y: np.ndarray,
+    max_grad_norm: float | None = None,
+) -> float:
+    logits = model(x)
+    loss = loss_fn.forward(logits, y)
+    dlogits = loss_fn.backward()
+
+    model.backward(dlogits)
+    params_grads = model.parameters_and_gradients()
+    if max_grad_norm is not None:
+        clip_gradients(parameters_and_gradients=params_grads, max_norm=max_grad_norm)
+    optimizer.step(params_grads)
+    return loss

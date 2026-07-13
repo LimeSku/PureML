@@ -7,7 +7,7 @@ from pureml.nn.llm.generation import generate
 from pureml.nn.llm.gpt import TinyGPT
 from pureml.nn.llm.losses import SequenceCrossEntropy
 from pureml.nn.llm.tokenizer import CharacterTokenizer
-from pureml.nn.llm.training import clip_gradients
+from pureml.nn.llm.training import train_language_model_step
 from pureml.optimizer.adam import Adam
 
 
@@ -26,6 +26,8 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--log-every", type=int, default=100)
     parser.add_argument("--prompt", default="ROMEO:")
     parser.add_argument("--max-new-tokens", type=int, default=200)
+    parser.add_argument("--save-weights", type=Path)
+    parser.add_argument("--load-weights", type=Path)
     return parser.parse_args()
 
 
@@ -50,6 +52,8 @@ def main() -> None:
         num_layers=4,
         hidden_dim=512,
     )
+    if args.load_weights is not None:
+        model.load_weights(args.load_weights)
     loss_fn = SequenceCrossEntropy()
     optimizer = Adam(learning_rate=args.learning_rate)
     print(f"Dataset characters: {len(text)}")
@@ -64,20 +68,16 @@ def main() -> None:
         start = int(rng.integers(0, max_start))
         x = token_ids[start : start + args.ctx_length]
         y = np.array(token_ids[start + 1 : start + args.ctx_length + 1])
-
-        logits = model(x)
-        loss = loss_fn.forward(logits, y)
-        dlogits = loss_fn.backward()
-
-        model.backward(dlogits)
-        clip_gradients(model.parameters_and_gradients(), max_norm=args.max_grad_norm)
-        optimizer.step(model.parameters_and_gradients())
+        loss = train_language_model_step(
+            model, loss_fn, optimizer, x, y, max_grad_norm=args.max_grad_norm
+        )
         running_loss += loss
         if step == 0 or (step + 1) % args.log_every == 0:
             avg_loss = running_loss / min(args.log_every, step + 1)
             print(f"Step {step + 1:>5}/{args.steps} - loss: {avg_loss:.4f}")
             running_loss = 0.0
-
+    if args.save_weights is not None:
+        model.save_weights(args.save_weights)
     prompt_ids = tokenizer.encode(args.prompt)
     generated_ids = generate(
         model=model,

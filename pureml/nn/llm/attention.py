@@ -72,6 +72,13 @@ class CausalSelfAttentionHead:
             (self.W_value, self.dW_value),
         ]
 
+    def named_parameters(self, prefix: str = ""):
+        return {
+            f"{prefix}W_query": self.W_query,
+            f"{prefix}W_key": self.W_key,
+            f"{prefix}W_value": self.W_value,
+        }
+
 
 class MultiHeadCausalSelfAttention:
     def __init__(self, embedding_dim: int, num_heads: int, init_std: float = 0.02):
@@ -120,6 +127,16 @@ class MultiHeadCausalSelfAttention:
 
         for head in self.heads:
             params += head.parameters_and_gradients()
+
+        return params
+
+    def named_parameters(self, prefix: str = ""):
+        params = {
+            f"{prefix}W_output": self.W_output,
+        }
+
+        for index, head in enumerate(self.heads):
+            params.update(head.named_parameters(f"{prefix}heads.{index}."))
 
         return params
 
