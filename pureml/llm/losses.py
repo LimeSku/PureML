@@ -7,6 +7,9 @@ class SequenceCrossEntropy:
         self.targets = None
         self.eps = 1e-12
 
+    def __call__(self, logits: np.ndarray, targets: np.ndarray) -> float:
+        return self.forward(logits, targets)
+
     def forward(self, logits: np.ndarray, targets: np.ndarray) -> float:
         """
         1. compute probs of each class by softmax on logits

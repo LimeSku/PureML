@@ -24,7 +24,7 @@ def train_language_model_step(
     max_grad_norm: float | None = None,
 ) -> float:
     logits = model(x)
-    loss = loss_fn.forward(logits, y)
+    loss = loss_fn(logits, y)
     dlogits = loss_fn.backward()
 
     model.backward(dlogits)

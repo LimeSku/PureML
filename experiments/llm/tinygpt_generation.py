@@ -1,6 +1,6 @@
-from pureml.nn.llm.generation import generate
-from pureml.nn.llm.gpt import TinyGPT
-from pureml.nn.llm.tokenizer import (
+from pureml.llm.generation import generate
+from pureml.llm.tinygpt.model import TinyGPT
+from pureml.llm.tokenization.char_tokenizer import (
     DEFAULT_CHARACTERS,
     CharacterTokenizer,
 )

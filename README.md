@@ -64,7 +64,6 @@ uv run python experiments/ensemble/xgboost_regressor_demo.py
 uv run python experiments/llm/dataset_windows.py
 uv run python experiments/llm/tinygpt_generation.py
 uv run python experiments/llm/tinygpt_training.py
-uv run python experiments/llm/tinygpt_tiny_shakespeare.py
 ```
 
 ## Model Notes
@@ -91,9 +90,9 @@ PureML/
     ├── ensemble/
     ├── metrics/
     ├── model_selection/
+    ├── llm/
     ├── nn/
     │   ├── cnn/
-    │   ├── llm/
     │   └── mlp/
     ├── optimizer/
     ├── supervised/

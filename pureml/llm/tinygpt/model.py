@@ -1,7 +1,10 @@
+import json
+from pathlib import Path
+
 import numpy as np
 
-from pureml.nn.llm.embeddings import llmEmbeddingLayer
-from pureml.nn.llm.transformer import LayerNorm, TransformerBlock
+from pureml.llm.tinygpt.embeddings import llmEmbeddingLayer
+from pureml.llm.tinygpt.transformer import LayerNorm, TransformerBlock
 
 
 class TinyGPT:
@@ -18,6 +21,10 @@ class TinyGPT:
         self.vocab_size = vocab_size
         self.ctx_length = ctx_length
         self.embedding_dim = embedding_dim
+        self.num_heads = num_heads
+        self.num_layers = num_layers
+        self.hidden_dim = hidden_dim
+        self.init_std = init_std
 
         self.embedding_layer = llmEmbeddingLayer(
             vocab_size=vocab_size,
@@ -64,14 +71,14 @@ class TinyGPT:
         self.embedding_layer.backward(dx)
         return dx
 
-    def step(self, learning_rate: float) -> None:
-        self.W_output -= learning_rate * self.dW_output
-        self.b_output -= learning_rate * self.db_output
-        self.final_layer_norm.step(learning_rate)
-        for block in self.blocks:
-            block.step(learning_rate)
+    # def step(self, learning_rate: float) -> None:
+    #     self.W_output -= learning_rate * self.dW_output
+    #     self.b_output -= learning_rate * self.db_output
+    #     self.final_layer_norm.step(learning_rate)
+    #     for block in self.blocks:
+    #         block.step(learning_rate)
 
-        self.embedding_layer.step(learning_rate)
+    #     self.embedding_layer.step(learning_rate)
 
     def parameters_and_gradients(self):
         params = [
@@ -102,18 +109,59 @@ class TinyGPT:
         params.update(self.embedding_layer.named_parameters("embedding_layer."))
         return params
 
+    def get_config(self) -> dict[str, int | float]:
+        return {
+            "vocab_size": self.vocab_size,
+            "ctx_length": self.ctx_length,
+            "embedding_dim": self.embedding_dim,
+            "num_heads": self.num_heads,
+            "num_layers": self.num_layers,
+            "hidden_dim": self.hidden_dim,
+            "init_std": self.init_std,
+        }
+
+    def save_checkpoint(self, path: Path) -> None:
+        path.mkdir(parents=True, exist_ok=True)
+
+        config_path = path / "config.json"
+        config_path.write_text(
+            json.dumps(self.get_config(), indent=2),
+            encoding="utf-8",
+        )
+
+        self.save_weights(path / "weights.npz")
+
+    @classmethod
+    def from_checkpoint(cls, path: Path) -> "TinyGPT":
+        config_path = path / "config.json"
+        config = json.loads(config_path.read_text(encoding="utf-8"))
+
+        model = cls(**config)
+        model.load_weights(path / "weights.npz")
+        return model
+
     def save_weights(self, path) -> None:
         np.savez(path, **self.named_parameters())
 
     def load_weights(self, path) -> None:
-        weights = np.load(path)
         params = self.named_parameters()
-        for name, param in params.items():
-            if name not in weights:
-                raise ValueError(f"Missing weight: {name}")
-            weight = weights[name]
-            if param.shape != weight.shape:
-                raise ValueError(
-                    f"Shape mismatch for {name}: expected {param.shape}, got {weight.shape}"
-                )
-            param[...] = weight
+        with np.load(path, allow_pickle=False) as weights:
+            expected_names = set(params)
+            checkpoint_names = set(weights.files)
+            missing_names = expected_names - checkpoint_names
+            if missing_names:
+                names = ", ".join(sorted(missing_names))
+                raise ValueError(f"Missing weights: {names}")
+            unexpected_names = checkpoint_names - expected_names
+            if unexpected_names:
+                names = ", ".join(sorted(unexpected_names))
+                raise ValueError(f"Missing weights: {names}")
+
+            for name, param in params.items():
+                weight = weights[name]
+                if param.shape != weight.shape:
+                    raise ValueError(
+                        f"Shape mismatch for {name}: ",
+                        f"expected {param.shape}, got {weight.shape}",
+                    )
+                param[...] = weight
