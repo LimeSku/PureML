@@ -10,6 +10,9 @@ class CausalSelfAttentionHead:
         self.W_key = np.random.normal(0.0, init_std, size=(embedding_dim, head_dim))
         self.W_value = np.random.normal(0.0, init_std, size=(embedding_dim, head_dim))
 
+    def __call__(self, x: np.ndarray) -> np.ndarray:
+        return self.forward(x)
+
     def forward(self, x: np.ndarray) -> np.ndarray:
         Q = x @ self.W_query
         K = x @ self.W_key
@@ -57,14 +60,6 @@ class CausalSelfAttentionHead:
         self.W_key -= learning_rate * self.dW_key
         self.W_value -= learning_rate * self.dW_value
 
-    def _softmax(self, x: np.ndarray) -> np.ndarray:
-        x = x - np.max(x, axis=-1, keepdims=True)
-        exp_x = np.exp(x)
-        return exp_x / np.sum(exp_x, axis=-1, keepdims=True)
-
-    def __call__(self, x: np.ndarray) -> np.ndarray:
-        return self.forward(x)
-
     def parameters_and_gradients(self):
         return [
             (self.W_query, self.dW_query),
@@ -78,6 +73,11 @@ class CausalSelfAttentionHead:
             f"{prefix}W_key": self.W_key,
             f"{prefix}W_value": self.W_value,
         }
+
+    def _softmax(self, x: np.ndarray) -> np.ndarray:
+        x = x - np.max(x, axis=-1, keepdims=True)
+        exp_x = np.exp(x)
+        return exp_x / np.sum(exp_x, axis=-1, keepdims=True)
 
 
 class MultiHeadCausalSelfAttention:
@@ -99,6 +99,9 @@ class MultiHeadCausalSelfAttention:
             init_std,
             size=(embedding_dim, embedding_dim),
         )
+
+    def __call__(self, x: np.ndarray) -> np.ndarray:
+        return self.forward(x)
 
     def forward(self, x: np.ndarray) -> np.ndarray:
         head_outputs = [head(x) for head in self.heads]
@@ -139,6 +142,3 @@ class MultiHeadCausalSelfAttention:
             params.update(head.named_parameters(f"{prefix}heads.{index}."))
 
         return params
-
-    def __call__(self, x: np.ndarray) -> np.ndarray:
-        return self.forward(x)

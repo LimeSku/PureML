@@ -38,6 +38,15 @@ def test_random_forest_emits_one_event_per_tree(iris):
     assert result.test_acc >= 0.8
 
 
+def test_gradient_boosting_streams_loss(iris):
+    trainer = _make("Gradient Boosting")
+    events, result = _run(trainer, iris)
+    assert len(events) == trainer.n_estimators
+    assert all(event.loss is not None for event in events)
+    assert len(result.loss_history) == trainer.n_estimators
+    assert result.test_acc >= 0.8
+
+
 def test_mlp_streams_loss_and_improves(iris):
     trainer = _make("MLP")
     events, result = _run(trainer, iris)

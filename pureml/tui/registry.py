@@ -16,6 +16,7 @@ from pureml.model_selection.train_test_split import train_test_split
 from pureml.tui.trainers import (
     Dataset,
     ForestTrainer,
+    GradientBoostingTrainer,
     MlpTrainer,
     TreeTrainer,
 )
@@ -55,6 +56,18 @@ MODEL_SPECS: dict[str, ModelSpec] = {
             n_estimators=v["n_estimators"], max_depth=v["max_depth"]
         ),
     ),
+    "Gradient Boosting": ModelSpec(
+        params=[
+            HyperParam("n_estimators", "Rounds", 30),
+            HyperParam("learning_rate", "Learning rate", 0.1, is_int=False),
+            HyperParam("max_depth", "Max depth", 3),
+        ],
+        factory=lambda v: GradientBoostingTrainer(
+            n_estimators=v["n_estimators"],
+            learning_rate=v["learning_rate"],
+            max_depth=v["max_depth"],
+        ),
+    ),
     "MLP": ModelSpec(
         params=[
             HyperParam("epochs", "Epochs", 50),
@@ -73,7 +86,7 @@ MODEL_SPECS: dict[str, ModelSpec] = {
 
 # Models grouped by family for the sidebar tree (insertion order is display order).
 MODEL_FAMILIES: dict[str, list[str]] = {
-    "Tree-based": ["Decision Tree", "Random Forest"],
+    "Tree-based": ["Decision Tree", "Random Forest", "Gradient Boosting"],
     "Neural Networks": ["MLP"],
 }
 

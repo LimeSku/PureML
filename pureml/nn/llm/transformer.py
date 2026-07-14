@@ -20,6 +20,9 @@ class FeedForward:
         )
         self.b2 = np.zeros(embedding_dim)
 
+    def __call__(self, x: np.ndarray) -> np.ndarray:
+        return self.forward(x)
+
     def forward(self, x: np.ndarray) -> np.ndarray:
         self.x = x
         self.hidden_pre_activation = x @ self.W1 + self.b1
@@ -44,24 +47,6 @@ class FeedForward:
         self.W2 -= learning_rate * self.dW2
         self.b2 -= learning_rate * self.db2
 
-    def _gelu(self, x: np.ndarray) -> np.ndarray:
-        # :)
-        # Gaussian Error linear unit, makes the transformation not just a linear projection.
-        return 0.5 * x * (1.0 + np.tanh(np.sqrt(2.0 / np.pi) * (x + 0.044715 * x**3)))
-
-    def _gelu_derivative(self, x):
-        """copy pasted dgelu ... no shame"""
-        c = np.sqrt(2.0 / np.pi)
-        inner = c * (x + 0.044715 * x**3)
-        tanh_inner = np.tanh(inner)
-
-        return 0.5 * (1.0 + tanh_inner) + 0.5 * x * (1.0 - tanh_inner**2) * c * (
-            1.0 + 3.0 * 0.044715 * x**2
-        )
-
-    def __call__(self, x: np.ndarray) -> np.ndarray:
-        return self.forward(x)
-
     def parameters_and_gradients(self):
         return [
             (self.W1, self.dW1),
@@ -77,6 +62,21 @@ class FeedForward:
             f"{prefix}W2": self.W2,
             f"{prefix}b2": self.b2,
         }
+
+    def _gelu(self, x: np.ndarray) -> np.ndarray:
+        # :)
+        # Gaussian Error linear unit, makes the transformation not just a linear projection.
+        return 0.5 * x * (1.0 + np.tanh(np.sqrt(2.0 / np.pi) * (x + 0.044715 * x**3)))
+
+    def _gelu_derivative(self, x):
+        """copy pasted dgelu ... no shame"""
+        c = np.sqrt(2.0 / np.pi)
+        inner = c * (x + 0.044715 * x**3)
+        tanh_inner = np.tanh(inner)
+
+        return 0.5 * (1.0 + tanh_inner) + 0.5 * x * (1.0 - tanh_inner**2) * c * (
+            1.0 + 3.0 * 0.044715 * x**2
+        )
 
 
 class LayerNorm:

@@ -35,6 +35,7 @@ class GradientBoostingClassifier:
         X_val=None,
         y_val=None,
         early_stopping_rounds: int | None = None,
+        progress_callback=None,
     ):
         X = np.asarray(X)
         y = np.asarray(y)
@@ -92,6 +93,12 @@ class GradientBoostingClassifier:
             self.trees.append(class_trees)
             proba = self._softmax(scores)
             self.training_loss_.append(self._cross_entropy(Y, proba))
+            if progress_callback is not None:
+                progress_callback(
+                    estimator_index + 1,
+                    self.n_estimators,
+                    self.training_loss_[-1],
+                )
 
             if X_val is not None:
                 for k, tree in enumerate(class_trees):

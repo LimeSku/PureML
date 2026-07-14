@@ -17,6 +17,9 @@ class Embedding:
             size=(num_embeddings, embedding_dim),
         )
 
+    def __call__(self, token_ids: list[int]):
+        return self.forward(token_ids)
+
     def forward(self, token_ids: list[int]) -> np.ndarray:
         self.token_ids = token_ids
         return self.weights[token_ids]
@@ -39,14 +42,14 @@ class Embedding:
             f"{prefix}weights": self.weights,
         }
 
-    def __call__(self, token_ids: list[int]):
-        return self.forward(token_ids)
-
 
 class llmEmbeddingLayer:
     def __init__(self, vocab_size: int, ctx_length: int, embedding_dim: int):
         self.token_embedding_layer = Embedding(vocab_size, embedding_dim)
         self.pos_embedding_layer = Embedding(ctx_length, embedding_dim, init_std=0.01)
+
+    def __call__(self, token_ids: list[int]) -> np.ndarray:
+        return self.forward(token_ids)
 
     def forward(self, token_ids: list[int]) -> np.ndarray:
         positions = list(range(len(token_ids)))
@@ -75,6 +78,3 @@ class llmEmbeddingLayer:
         )
         params.update(self.pos_embedding_layer.named_parameters(f"{prefix}pos_embedding."))
         return params
-
-    def __call__(self, token_ids: list[int]) -> np.ndarray:
-        return self.forward(token_ids)

@@ -14,6 +14,7 @@ from dataclasses import dataclass, field
 import numpy as np
 
 from pureml.datasets import standardize
+from pureml.ensemble.gradient_boosting_classifier import GradientBoostingClassifier
 from pureml.ensemble.random_forest_classifier import RandomForestClassifier
 from pureml.metrics.classification import accuracy_score, confusion_matrix
 from pureml.nn.mlp.classifier import MLPClassifier
@@ -101,6 +102,37 @@ class ForestTrainer:
         )
         result = _evaluate(model, data, start)
         result.oob_score = model.oob_score_
+        return result
+
+
+class GradientBoostingTrainer:
+    """GradientBoostingClassifier — streams progress boosting round by round."""
+
+    unit = "round"
+
+    def __init__(self, n_estimators: int, learning_rate: float, max_depth: int):
+        self.n_estimators = n_estimators
+        self.learning_rate = learning_rate
+        self.max_depth = max_depth
+        self.total = n_estimators
+
+    def run(self, data: Dataset, emit: Emit) -> Result:
+        start = time.perf_counter()
+        model = GradientBoostingClassifier(
+            n_estimators=self.n_estimators,
+            learning_rate=self.learning_rate,
+            max_depth=self.max_depth,
+            random_state=42,
+        )
+        model.fit(
+            data.X_train,
+            data.y_train,
+            progress_callback=lambda done, total, loss: emit(
+                Progress(step=done, total=total, unit=self.unit, loss=loss)
+            ),
+        )
+        result = _evaluate(model, data, start)
+        result.loss_history = model.training_loss_
         return result
 
 

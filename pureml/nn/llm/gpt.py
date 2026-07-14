@@ -4,23 +4,6 @@ from pureml.nn.llm.embeddings import llmEmbeddingLayer
 from pureml.nn.llm.transformer import LayerNorm, TransformerBlock
 
 
-def clip_gradients(parameters_and_gradients, max_norm: float) -> None:
-    total_norm_squared = 0.0
-
-    for _, grad in parameters_and_gradients:
-        total_norm_squared += np.sum(grad**2)
-
-    total_norm = np.sqrt(total_norm_squared)
-
-    if total_norm <= max_norm:
-        return
-
-    scale = max_norm / (total_norm + 1e-12)
-
-    for _, grad in parameters_and_gradients:
-        grad *= scale
-
-
 class TinyGPT:
     def __init__(
         self,
@@ -58,6 +41,9 @@ class TinyGPT:
             size=(embedding_dim, vocab_size),
         )
         self.b_output = np.zeros(vocab_size)
+
+    def __call__(self, token_ids: np.ndarray) -> np.ndarray:
+        return self.forward(token_ids)
 
     def forward(self, token_ids: list[int]) -> np.ndarray:
         x = self.embedding_layer(token_ids)
@@ -115,9 +101,6 @@ class TinyGPT:
 
         params.update(self.embedding_layer.named_parameters("embedding_layer."))
         return params
-
-    def __call__(self, token_ids: np.ndarray) -> np.ndarray:
-        return self.forward(token_ids)
 
     def save_weights(self, path) -> None:
         np.savez(path, **self.named_parameters())
