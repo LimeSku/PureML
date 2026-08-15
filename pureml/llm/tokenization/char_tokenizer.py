@@ -1,13 +1,12 @@
 import string
-from typing import Any
 
 DEFAULT_CHARACTERS = string.ascii_letters + string.digits + string.punctuation + " \n"
 
 
 class CharacterTokenizer:
-    def __init__(self):
-        self.char_to_id = None  # map
-        self.id_to_char = None
+    def __init__(self) -> None:
+        self.char_to_id: dict[str, int] | None = None
+        self.id_to_char: dict[int, str] | None = None
         self.vocab_size = 0
 
     def fit(self, text: str = DEFAULT_CHARACTERS) -> "CharacterTokenizer":
@@ -17,13 +16,13 @@ class CharacterTokenizer:
         self.vocab_size = len(unique_chars)
         return self
 
-    def encode(self, text: str) -> list[Any | int]:
-        if not self.vocab_size:
+    def encode(self, text: str) -> list[int]:
+        if self.char_to_id is None:
             raise ValueError("Tokenizer not trained yet")
-        return [self.char_to_id[c] for c in text]
+        return [self.char_to_id[character] for character in text]
 
-    def decode(self, ids: list[int]):
-        if not self.vocab_size:
+    def decode(self, ids: list[int], errors: str = "strict") -> str:
+        if self.id_to_char is None:
             raise ValueError("Tokenizer not trained yet")
         return "".join(self.id_to_char[token_id] for token_id in ids)
 
