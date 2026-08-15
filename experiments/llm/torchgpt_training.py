@@ -5,6 +5,11 @@ from time import perf_counter
 import torch
 
 from pureml.llm.tokenization import CharacterTokenizer
+from pureml.llm.torchgpt.checkpoint import (
+    load_training_checkpoint,
+    save_training_checkpoint,
+)
+from pureml.llm.torchgpt.generation import generate
 from pureml.llm.torchgpt.model import TinyGPT
 from pureml.llm.torchgpt.training import (
     language_model_loss,
@@ -30,7 +35,15 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--log-every", type=int, default=100)
     parser.add_argument("--eval-batches", type=int, default=10)
     parser.add_argument("--temperature", type=float, default=0.8)
-    return parser.parse_args()
+    parser.add_argument("--checkpoint-dir", type=Path)
+    parser.add_argument("--save-every", type=int, default=500)
+    parser.add_argument("--resume", type=Path)
+    args = parser.parse_args()
+
+    if args.save_every <= 0:
+        parser.error("--save-every must be positive")
+
+    return args
 
 
 def select_device() -> torch.device:
@@ -99,42 +112,6 @@ def evaluate_language_model(
     return torch.stack(losses).mean().item()
 
 
-@torch.no_grad()
-def generate(
-    model: TinyGPT,
-    prompt_ids: list[int],
-    max_new_tokens: int,
-    temperature: float,
-    device: torch.device,
-) -> list[int]:
-    if temperature <= 0:
-        raise ValueError("temperature must be positive")
-
-    model.eval()
-
-    generated = torch.tensor(
-        [prompt_ids],
-        dtype=torch.long,
-        device=device,
-    )
-
-    for _ in range(max_new_tokens):
-        context = generated[:, -model.ctx_length :]
-        logits = model(context)
-        next_token_logits = logits[:, -1] / temperature
-        probabilities = torch.softmax(next_token_logits, dim=-1)
-        next_token = torch.multinomial(
-            probabilities,
-            num_samples=1,
-        )
-        generated = torch.cat(
-            [generated, next_token],
-            dim=1,
-        )
-
-    return generated[0].tolist()
-
-
 def main() -> None:
     args = parse_args()
     torch.manual_seed(42)
@@ -166,10 +143,50 @@ def main() -> None:
         prompt = "ROMEO:"
         max_new_tokens = 300
 
-    tokenizer = CharacterTokenizer().fit(text)
+    checkpoint_dir = args.checkpoint_dir
+    if checkpoint_dir is None and args.resume is not None:
+        checkpoint_dir = args.resume.parent
+
+    if args.resume is None:
+        tokenizer = CharacterTokenizer().fit(text)
+        model = TinyGPT(
+            vocab_size=tokenizer.vocab_size,
+            ctx_length=ctx_length,
+            embedding_dim=embedding_dim,
+            num_heads=num_heads,
+            num_layers=num_layers,
+            hidden_dim=hidden_dim,
+        ).to(device)
+        optimizer = torch.optim.AdamW(
+            model.parameters(),
+            lr=learning_rate,
+            weight_decay=weight_decay,
+        )
+        start_step = 1
+        best_validation_loss = float("inf")
+    else:
+        loaded_checkpoint = load_training_checkpoint(
+            args.resume,
+            device=device,
+        )
+        model = loaded_checkpoint.model
+        optimizer = loaded_checkpoint.optimizer
+        tokenizer = loaded_checkpoint.tokenizer
+        ctx_length = model.ctx_length
+        start_step = loaded_checkpoint.step + 1
+        best_validation_loss = loaded_checkpoint.best_validation_loss
+
+    try:
+        encoded_text = tokenizer.encode(text)
+    except KeyError as error:
+        missing_character = error.args[0]
+        raise ValueError(
+            "dataset contains a character absent from the checkpoint tokenizer: "
+            f"{missing_character!r}"
+        ) from error
 
     token_ids = torch.tensor(
-        tokenizer.encode(text),
+        encoded_text,
         dtype=torch.long,
         device=device,
     )
@@ -177,21 +194,6 @@ def main() -> None:
     split_index = int(len(token_ids) * 0.9)
     train_token_ids = token_ids[:split_index]
     validation_token_ids = token_ids[split_index:]
-
-    model = TinyGPT(
-        vocab_size=tokenizer.vocab_size,
-        ctx_length=ctx_length,
-        embedding_dim=embedding_dim,
-        num_heads=num_heads,
-        num_layers=num_layers,
-        hidden_dim=hidden_dim,
-    ).to(device)
-
-    optimizer = torch.optim.AdamW(
-        model.parameters(),
-        lr=learning_rate,
-        weight_decay=weight_decay,
-    )
 
     parameter_count = sum(parameter.numel() for parameter in model.parameters())
 
@@ -201,12 +203,16 @@ def main() -> None:
     print(f"Vocabulary size: {tokenizer.vocab_size}")
     print(f"Context length: {ctx_length}")
     print(f"Parameters: {parameter_count:,}")
+    if args.resume is not None:
+        print(f"Resumed from: {args.resume} (step {start_step - 1})")
+    if checkpoint_dir is not None:
+        print(f"Checkpoint directory: {checkpoint_dir}")
 
     synchronize_device(device)
     interval_started_at = perf_counter()
-    last_logged_step = 0
+    last_logged_step = start_step - 1
 
-    for step in range(1, steps + 1):
+    for step in range(start_step, steps + 1):
         x_batch, y_batch = sample_batch(
             token_ids=train_token_ids,
             batch_size=args.batch_size,
@@ -220,7 +226,8 @@ def main() -> None:
             max_grad_norm=1.0,
         )
 
-        if step == 1 or step % args.log_every == 0:
+        logged_this_step = step == 1 or step % args.log_every == 0
+        if logged_this_step:
             synchronize_device(device)
             training_elapsed = perf_counter() - interval_started_at
             interval_steps = step - last_logged_step
@@ -241,6 +248,36 @@ def main() -> None:
                 f"- {seconds_per_step:.3f}s/step"
             )
 
+            if validation_loss < best_validation_loss:
+                best_validation_loss = validation_loss
+                if checkpoint_dir is not None:
+                    best_checkpoint_path = checkpoint_dir / "best.pt"
+                    save_training_checkpoint(
+                        best_checkpoint_path,
+                        model=model,
+                        optimizer=optimizer,
+                        tokenizer=tokenizer,
+                        step=step,
+                        best_validation_loss=best_validation_loss,
+                    )
+                    print(f"Saved best checkpoint: {best_checkpoint_path}")
+
+        should_save_last = checkpoint_dir is not None and (
+            step % args.save_every == 0 or step == steps
+        )
+        if should_save_last:
+            last_checkpoint_path = checkpoint_dir / "last.pt"
+            save_training_checkpoint(
+                last_checkpoint_path,
+                model=model,
+                optimizer=optimizer,
+                tokenizer=tokenizer,
+                step=step,
+                best_validation_loss=best_validation_loss,
+            )
+            print(f"Saved latest checkpoint: {last_checkpoint_path}")
+
+        if logged_this_step:
             synchronize_device(device)
             interval_started_at = perf_counter()
             last_logged_step = step

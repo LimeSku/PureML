@@ -66,7 +66,18 @@ uv run python experiments/llm/dataset_windows.py
 uv run python experiments/llm/tinygpt_generation.py
 uv run python experiments/llm/tinygpt_training.py
 uv run python experiments/llm/torchgpt_training.py shakespeare
+uv run python experiments/llm/torchgpt_training.py shakespeare \
+  --checkpoint-dir checkpoints/shakespeare
+uv run python experiments/llm/torchgpt_training.py shakespeare \
+  --resume checkpoints/shakespeare/last.pt
+uv run python experiments/llm/torchgpt_generation.py \
+  checkpoints/shakespeare/best.pt "ROMEO:"
 ```
+
+`--checkpoint-dir` writes `last.pt` every `--save-every` steps and at the end
+of training. It also updates `best.pt` whenever the validation loss improves.
+When resuming, `--steps` is the total target step, not a number of additional
+steps.
 
 ## Model Notes
 
@@ -156,5 +167,5 @@ PureML/
 - [x] TinyGPT NumPy backpropagation
 - [x] Adam optimizer
 - [x] Tiny Shakespeare training demo
-- [ ] Save/load TinyGPT weights
+- [x] Save/load PyTorch TinyGPT training checkpoints
 - [ ] Mini-batch TinyGPT training
