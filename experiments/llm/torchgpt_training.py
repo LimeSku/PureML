@@ -4,7 +4,11 @@ from time import perf_counter
 
 import torch
 
-from pureml.llm.tokenization import CharacterTokenizer
+from pureml.llm.tokenization import (
+    BytePairTokenizer,
+    CharacterTokenizer,
+    TextTokenizer,
+)
 from pureml.llm.torchgpt.checkpoint import (
     load_training_checkpoint,
     save_training_checkpoint,
@@ -21,6 +25,8 @@ TINY_STORIES_TRAIN_PATH = Path("datasets/tiny_stories/train.txt")
 TINY_STORIES_VALIDATION_PATH = Path("datasets/tiny_stories/validation.txt")
 TINY_STORIES_TRAIN_CHARACTER_LIMIT = 25_000_000
 TINY_STORIES_VALIDATION_CHARACTER_LIMIT = 2_000_000
+DEFAULT_BPE_VOCAB_SIZE = 1_024
+DEFAULT_TOKENIZER_TRAINING_CHARACTER_LIMIT = 1_000_000
 
 
 def parse_args() -> argparse.Namespace:
@@ -51,6 +57,24 @@ def parse_args() -> argparse.Namespace:
         type=int,
         help="TinyStories validation character limit; use 0 to load the entire file",
     )
+    parser.add_argument(
+        "--tokenizer",
+        choices=["character", "bpe"],
+        help="defaults to bpe for TinyStories and character for other datasets",
+    )
+    parser.add_argument(
+        "--vocab-size",
+        type=int,
+        help=f"BPE vocabulary size (default: {DEFAULT_BPE_VOCAB_SIZE})",
+    )
+    parser.add_argument(
+        "--tokenizer-training-characters",
+        type=int,
+        help=(
+            "characters used to fit BPE; use 0 for the entire training text "
+            f"(default: {DEFAULT_TOKENIZER_TRAINING_CHARACTER_LIMIT})"
+        ),
+    )
     parser.add_argument("--steps", type=int)
     parser.add_argument("--batch-size", type=int, default=32)
     parser.add_argument("--log-every", type=int, default=100)
@@ -64,6 +88,13 @@ def parse_args() -> argparse.Namespace:
 
     if args.steps is not None and args.steps <= 0:
         parser.error("--steps must be positive")
+    if args.vocab_size is not None and args.vocab_size < 256:
+        parser.error("--vocab-size must be at least 256")
+    if (
+        args.tokenizer_training_characters is not None
+        and args.tokenizer_training_characters < 0
+    ):
+        parser.error("--tokenizer-training-characters must be non-negative")
     if args.save_every <= 0:
         parser.error("--save-every must be positive")
     if args.max_train_characters is not None and args.max_train_characters < 0:
@@ -86,6 +117,26 @@ def parse_args() -> argparse.Namespace:
         parser.error(
             "--dropout cannot be used with --resume; it comes from the checkpoint"
         )
+    if args.resume is not None and any(
+        value is not None
+        for value in (
+            args.tokenizer,
+            args.vocab_size,
+            args.tokenizer_training_characters,
+        )
+    ):
+        parser.error(
+            "tokenizer options cannot be used with --resume; "
+            "they come from the checkpoint"
+        )
+
+    tokenizer_type = args.tokenizer
+    if tokenizer_type is None:
+        tokenizer_type = "bpe" if args.dataset == "tinystories" else "character"
+    if tokenizer_type == "character" and (
+        args.vocab_size is not None or args.tokenizer_training_characters is not None
+    ):
+        parser.error("BPE options require --tokenizer bpe")
 
     return args
 
@@ -105,7 +156,7 @@ def character_limit(value: int | None, default: int) -> int | None:
 
 
 def encode_text(
-    tokenizer: CharacterTokenizer,
+    tokenizer: TextTokenizer,
     text: str,
     device: torch.device,
     split: str,
@@ -124,6 +175,29 @@ def encode_text(
         dtype=torch.long,
         device=device,
     )
+
+
+def fit_tokenizer(
+    text: str,
+    tokenizer_type: str,
+    vocab_size: int,
+    training_character_limit: int | None,
+) -> TextTokenizer:
+    if tokenizer_type == "character":
+        return CharacterTokenizer().fit(text)
+
+    training_text = (
+        text if training_character_limit is None else text[:training_character_limit]
+    )
+    return BytePairTokenizer().fit(training_text, vocab_size=vocab_size)
+
+
+def tokenizer_name(tokenizer: TextTokenizer) -> str:
+    if isinstance(tokenizer, CharacterTokenizer):
+        return "character"
+    if isinstance(tokenizer, BytePairTokenizer):
+        return "byte_pair"
+    raise TypeError(f"unsupported tokenizer: {type(tokenizer).__name__}")
 
 
 def select_device() -> torch.device:
@@ -274,7 +348,24 @@ def main() -> None:
 
     if args.resume is None:
         dropout = args.dropout if args.dropout is not None else 0.1
-        tokenizer = CharacterTokenizer().fit(training_text)
+        selected_tokenizer = args.tokenizer
+        if selected_tokenizer is None:
+            selected_tokenizer = "bpe" if args.dataset == "tinystories" else "character"
+        vocab_size = (
+            args.vocab_size if args.vocab_size is not None else DEFAULT_BPE_VOCAB_SIZE
+        )
+        tokenizer_training_limit = character_limit(
+            args.tokenizer_training_characters,
+            DEFAULT_TOKENIZER_TRAINING_CHARACTER_LIMIT,
+        )
+        tokenizer_started_at = perf_counter()
+        tokenizer = fit_tokenizer(
+            text=training_text,
+            tokenizer_type=selected_tokenizer,
+            vocab_size=vocab_size,
+            training_character_limit=tokenizer_training_limit,
+        )
+        tokenizer_training_elapsed = perf_counter() - tokenizer_started_at
         model = TinyGPT(
             vocab_size=tokenizer.vocab_size,
             ctx_length=ctx_length,
@@ -297,6 +388,7 @@ def main() -> None:
         start_step = 1
         best_validation_loss = float("inf")
     else:
+        tokenizer_training_elapsed = None
         loaded_checkpoint = load_training_checkpoint(
             args.resume,
             device=device,
@@ -357,7 +449,12 @@ def main() -> None:
     print(f"Model profile: {model_profile}")
     print(f"Training characters: {training_character_count:,}")
     print(f"Validation characters: {validation_character_count:,}")
+    print(f"Tokenizer: {tokenizer_name(tokenizer)}")
+    if tokenizer_training_elapsed is not None:
+        print(f"Tokenizer training: {tokenizer_training_elapsed:.2f}s")
     print(f"Vocabulary size: {tokenizer.vocab_size}")
+    print(f"Training tokens: {len(train_token_ids):,}")
+    print(f"Validation tokens: {len(validation_token_ids):,}")
     print(f"Context length: {ctx_length}")
     print(f"Embedding dimension: {model.embedding_dim}")
     print(
@@ -463,7 +560,7 @@ def main() -> None:
 
     print()
     print(f"Prompt: {prompt!r}")
-    print(tokenizer.decode(generated_ids))
+    print(tokenizer.decode(generated_ids, errors="replace"))
 
 
 if __name__ == "__main__":

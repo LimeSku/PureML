@@ -56,7 +56,7 @@ def main() -> None:
     print(f"Device: {device}")
     print(f"Checkpoint: {args.checkpoint} (step {checkpoint.step})")
     print(f"Prompt: {args.prompt!r}")
-    print(checkpoint.tokenizer.decode(generated_ids))
+    print(checkpoint.tokenizer.decode(generated_ids, errors="replace"))
 
 
 if __name__ == "__main__":
