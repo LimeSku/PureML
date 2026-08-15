@@ -57,6 +57,7 @@ def save_training_checkpoint(
             "hidden_dim": model.hidden_dim,
             "init_std": model.init_std,
             "tie_embeddings": model.tie_embeddings,
+            "position_encoding": model.position_encoding,
         },
         "model_state_dict": model.state_dict(),
         "optimizer_type": type(optimizer).__name__,

@@ -2,6 +2,8 @@ import torch
 from torch import nn
 from torch.nn import functional as F
 
+from pureml.llm.torchgpt.position import PositionEncoding, RotaryEmbedding
+
 
 class CausalSelfAttentionHead(nn.Module):
     def __init__(self, embedding_dim: int, head_dim: int, init_std: float = 0.02):
@@ -44,6 +46,7 @@ class MultiHeadCausalSelfAttention(nn.Module):
         num_heads: int,
         init_std: float = 0.02,
         dropout: float = 0.0,
+        position_encoding: PositionEncoding = "learned",
     ) -> None:
         super().__init__()
 
@@ -51,10 +54,15 @@ class MultiHeadCausalSelfAttention(nn.Module):
             raise ValueError("num_heads must be positive")
         if embedding_dim % num_heads != 0:
             raise ValueError("embedding_dim must be divisible by num_heads")
+        if position_encoding not in ("learned", "rope"):
+            raise ValueError(f"unsupported position encoding: {position_encoding!r}")
 
         self.embedding_dim = embedding_dim
         self.num_heads = num_heads
         self.head_dim = embedding_dim // num_heads
+        self.rotary_embedding = (
+            RotaryEmbedding(self.head_dim) if position_encoding == "rope" else None
+        )
         self.qkv = nn.Linear(
             embedding_dim,
             3 * embedding_dim,
@@ -104,6 +112,9 @@ class MultiHeadCausalSelfAttention(nn.Module):
             self.num_heads,
             self.head_dim,
         ).transpose(1, 2)
+        if self.rotary_embedding is not None:
+            query, key = self.rotary_embedding(query, key)
+
         output = F.scaled_dot_product_attention(
             query,
             key,

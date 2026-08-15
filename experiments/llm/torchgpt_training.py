@@ -87,6 +87,11 @@ def parse_args() -> argparse.Namespace:
         default=None,
         help="share token embedding and output weights (enabled by default)",
     )
+    parser.add_argument(
+        "--position-encoding",
+        choices=["learned", "rope"],
+        help="positional encoding used by new models (default: rope)",
+    )
     parser.add_argument("--checkpoint-dir", type=Path)
     parser.add_argument("--save-every", type=int, default=500)
     parser.add_argument("--resume", type=Path)
@@ -126,6 +131,11 @@ def parse_args() -> argparse.Namespace:
     if args.resume is not None and args.tie_embeddings is not None:
         parser.error(
             "--tie-embeddings cannot be used with --resume; "
+            "it comes from the checkpoint"
+        )
+    if args.resume is not None and args.position_encoding is not None:
+        parser.error(
+            "--position-encoding cannot be used with --resume; "
             "it comes from the checkpoint"
         )
     if args.resume is not None and any(
@@ -362,6 +372,9 @@ def main() -> None:
         tie_embeddings = (
             args.tie_embeddings if args.tie_embeddings is not None else True
         )
+        position_encoding = (
+            args.position_encoding if args.position_encoding is not None else "rope"
+        )
         selected_tokenizer = args.tokenizer
         if selected_tokenizer is None:
             selected_tokenizer = "bpe" if args.dataset == "tinystories" else "character"
@@ -389,6 +402,7 @@ def main() -> None:
             hidden_dim=hidden_dim,
             dropout=dropout,
             tie_embeddings=tie_embeddings,
+            position_encoding=position_encoding,
         ).to(device)
         optimizer = torch.optim.AdamW(
             model.parameters(),
@@ -479,6 +493,7 @@ def main() -> None:
     print(f"Transformer layers: {model.num_layers}")
     print(f"Feed-forward dimension: {model.hidden_dim}")
     print(f"Weight tying: {model.tie_embeddings}")
+    print(f"Position encoding: {model.position_encoding}")
     print(f"Dropout: {model.dropout}")
     print(f"Learning rate: {optimizer.param_groups[0]['lr']:.2e}")
     print(f"Scheduler: cosine decay to {scheduler.eta_min:.2e}")
