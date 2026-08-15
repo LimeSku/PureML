@@ -31,6 +31,7 @@ Implemented:
   - NumPy backpropagation
   - Adam training loop
   - text generation
+  - PyTorch backend with automatic CUDA, MPS, or CPU selection
 
 ## Live Training Dashboard (TUI)
 
@@ -64,6 +65,7 @@ uv run python experiments/ensemble/xgboost_regressor_demo.py
 uv run python experiments/llm/dataset_windows.py
 uv run python experiments/llm/tinygpt_generation.py
 uv run python experiments/llm/tinygpt_training.py
+uv run python experiments/llm/torchgpt_training.py shakespeare
 ```
 
 ## Model Notes
