@@ -30,19 +30,25 @@ class TransformerBlock(nn.Module):
         num_heads: int,
         hidden_dim: int,
         init_std: float = 0.02,
+        dropout: float = 0.0,
     ):
         super().__init__()
         self.ln1 = nn.LayerNorm(embedding_dim)
         self.attention = MultiHeadCausalSelfAttention(
-            embedding_dim=embedding_dim, num_heads=num_heads, init_std=init_std
+            embedding_dim=embedding_dim,
+            num_heads=num_heads,
+            init_std=init_std,
+            dropout=dropout,
         )
 
         self.ln2 = nn.LayerNorm(embedding_dim)
         self.feed_forward = FeedForward(
             embedding_dim=embedding_dim, hidden_dim=hidden_dim, init_std=init_std
         )
+        self.attention_dropout = nn.Dropout(dropout)
+        self.feed_forward_dropout = nn.Dropout(dropout)
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
-        x = x + self.attention(self.ln1(x))
-        x = x + self.feed_forward(self.ln2(x))
+        x = x + self.attention_dropout(self.attention(self.ln1(x)))
+        x = x + self.feed_forward_dropout(self.feed_forward(self.ln2(x)))
         return x

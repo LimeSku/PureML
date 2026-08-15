@@ -40,13 +40,13 @@ def save_training_checkpoint(
 
     device = next(model.parameters()).device
     tokenizer_characters = "".join(
-        tokenizer.id_to_char[token_id]
-        for token_id in range(tokenizer.vocab_size)
+        tokenizer.id_to_char[token_id] for token_id in range(tokenizer.vocab_size)
     )
 
     checkpoint: dict[str, Any] = {
         "format_version": CHECKPOINT_FORMAT_VERSION,
         "model_config": {
+            "dropout": model.dropout,
             "vocab_size": model.vocab_size,
             "ctx_length": model.ctx_length,
             "embedding_dim": model.embedding_dim,
@@ -80,9 +80,7 @@ def load_training_checkpoint(
 ) -> LoadedTrainingCheckpoint:
     checkpoint = _load_checkpoint_payload(path, device)
     if checkpoint.get("optimizer_type") != "AdamW":
-        raise ValueError(
-            f"unsupported optimizer: {checkpoint.get('optimizer_type')!r}"
-        )
+        raise ValueError(f"unsupported optimizer: {checkpoint.get('optimizer_type')!r}")
 
     model, tokenizer = _load_model_and_tokenizer(checkpoint, device)
 
@@ -141,9 +139,7 @@ def _load_checkpoint_payload(
             f"{checkpoint.get('format_version')!r}"
         )
     if checkpoint.get("tokenizer_type") != "character":
-        raise ValueError(
-            f"unsupported tokenizer: {checkpoint.get('tokenizer_type')!r}"
-        )
+        raise ValueError(f"unsupported tokenizer: {checkpoint.get('tokenizer_type')!r}")
 
     return checkpoint
 

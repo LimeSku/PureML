@@ -43,6 +43,7 @@ class MultiHeadCausalSelfAttention(nn.Module):
         embedding_dim: int,
         num_heads: int,
         init_std: float = 0.02,
+        dropout: float = 0.0,
     ) -> None:
         super().__init__()
 
@@ -75,6 +76,7 @@ class MultiHeadCausalSelfAttention(nn.Module):
             mean=0.0,
             std=init_std,
         )
+        self.dropout = dropout
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         batch_size, sequence_length, _ = x.shape
@@ -107,6 +109,7 @@ class MultiHeadCausalSelfAttention(nn.Module):
             key,
             value,
             is_causal=True,
+            dropout_p=self.dropout if self.training else 0.0,
         )
         output = output.transpose(1, 2).reshape(
             batch_size,

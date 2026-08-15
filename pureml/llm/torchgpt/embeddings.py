@@ -3,9 +3,12 @@ from torch import nn
 
 
 class TokenPositionEmbedding(nn.Module):
-    def __init__(self, vocab_size: int, ctx_length: int, embedding_dim: int):
+    def __init__(
+        self, vocab_size: int, ctx_length: int, embedding_dim: int, dropout: float = 0.0
+    ):
         super().__init__()
         self.context_length = ctx_length
+        self.dropout = nn.Dropout(dropout)
 
         self.token_embedding_layer = nn.Embedding(vocab_size, embedding_dim)
         self.pos_embedding_layer = nn.Embedding(
@@ -29,4 +32,4 @@ class TokenPositionEmbedding(nn.Module):
         token_embeddings = self.token_embedding_layer(token_ids)
         pos_embeddings = self.pos_embedding_layer(positions)
         # unsqueeze adds dimension of 1 at pos 0
-        return token_embeddings + pos_embeddings.unsqueeze(0)
+        return self.dropout(token_embeddings + pos_embeddings.unsqueeze(0))

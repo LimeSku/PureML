@@ -15,6 +15,7 @@ class TinyGPT(nn.Module):
         num_layers: int,
         hidden_dim: int,
         init_std: float = 0.02,
+        dropout: float = 0.0,
     ):
         super().__init__()
         self.vocab_size = vocab_size
@@ -24,11 +25,13 @@ class TinyGPT(nn.Module):
         self.num_layers = num_layers
         self.hidden_dim = hidden_dim
         self.init_std = init_std
+        self.dropout = dropout
 
         self.embedding_layer = TokenPositionEmbedding(
             vocab_size=vocab_size,
             ctx_length=ctx_length,
             embedding_dim=embedding_dim,
+            dropout=dropout,
         )
         self.blocks = nn.ModuleList([
             TransformerBlock(
@@ -36,6 +39,7 @@ class TinyGPT(nn.Module):
                 num_heads=num_heads,
                 hidden_dim=hidden_dim,
                 init_std=init_std,
+                dropout=dropout,
             )
             for _ in range(num_layers)
         ])

@@ -35,6 +35,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--log-every", type=int, default=100)
     parser.add_argument("--eval-batches", type=int, default=10)
     parser.add_argument("--temperature", type=float, default=0.8)
+    parser.add_argument("--dropout", type=float)
     parser.add_argument("--checkpoint-dir", type=Path)
     parser.add_argument("--save-every", type=int, default=500)
     parser.add_argument("--resume", type=Path)
@@ -42,6 +43,10 @@ def parse_args() -> argparse.Namespace:
 
     if args.save_every <= 0:
         parser.error("--save-every must be positive")
+    if args.dropout is not None and not 0.0 <= args.dropout < 1.0:
+        parser.error("--dropout must be between 0.0 (inclusive) and 1.0 (exclusive)")
+    if args.resume is not None and args.dropout is not None:
+        parser.error("--dropout cannot be used with --resume; it comes from the checkpoint")
 
     return args
 
@@ -158,6 +163,7 @@ def main() -> None:
         checkpoint_dir = args.resume.parent
 
     if args.resume is None:
+        dropout = args.dropout if args.dropout is not None else 0.1
         tokenizer = CharacterTokenizer().fit(text)
         model = TinyGPT(
             vocab_size=tokenizer.vocab_size,
@@ -166,6 +172,7 @@ def main() -> None:
             num_heads=num_heads,
             num_layers=num_layers,
             hidden_dim=hidden_dim,
+            dropout=dropout,
         ).to(device)
         optimizer = torch.optim.AdamW(
             model.parameters(),
@@ -221,6 +228,7 @@ def main() -> None:
     )
     print(f"Transformer layers: {model.num_layers}")
     print(f"Feed-forward dimension: {model.hidden_dim}")
+    print(f"Dropout: {model.dropout}")
     print(f"Parameters: {parameter_count:,}")
     if args.resume is not None:
         print(f"Resumed from: {args.resume} (step {start_step - 1})")
