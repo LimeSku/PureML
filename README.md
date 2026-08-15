@@ -70,6 +70,9 @@ uv run python experiments/llm/torchgpt_training.py shakespeare \
   --checkpoint-dir checkpoints/shakespeare
 uv run python experiments/llm/torchgpt_training.py shakespeare \
   --resume checkpoints/shakespeare/last.pt
+uv run python scripts/download_tiny_stories.py
+uv run python experiments/llm/torchgpt_training.py tinystories \
+  --checkpoint-dir checkpoints/tinystories
 uv run python experiments/llm/torchgpt_generation.py \
   checkpoints/shakespeare/best.pt "ROMEO:"
 ```
@@ -78,6 +81,13 @@ uv run python experiments/llm/torchgpt_generation.py \
 of training. It also updates `best.pt` whenever the validation loss improves.
 When resuming, `--steps` is the total target step, not a number of additional
 steps.
+
+The TinyStories downloader retrieves the GPT-4 train and validation files from
+the official Hugging Face dataset. They use about 2.25 GB of disk space. By
+default, the training experiment loads the first 25 million training characters
+and 2 million validation characters, and trains for 10,000 steps. Use
+`--max-train-characters` and `--max-validation-characters` to change these
+limits; a value of `0` loads the entire corresponding file.
 
 ## Model Notes
 

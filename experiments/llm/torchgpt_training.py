@@ -16,19 +16,40 @@ from pureml.llm.torchgpt.training import (
     train_language_model_step,
 )
 
+SHAKESPEARE_PATH = Path("datasets/tiny_shakespeare/input.txt")
+TINY_STORIES_TRAIN_PATH = Path("datasets/tiny_stories/train.txt")
+TINY_STORIES_VALIDATION_PATH = Path("datasets/tiny_stories/validation.txt")
+TINY_STORIES_TRAIN_CHARACTER_LIMIT = 25_000_000
+TINY_STORIES_VALIDATION_CHARACTER_LIMIT = 2_000_000
+
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser()
     parser.add_argument(
         "dataset",
-        choices=["toy", "shakespeare"],
+        choices=["toy", "shakespeare", "tinystories"],
         nargs="?",
         default="shakespeare",
     )
     parser.add_argument(
         "--path",
         type=Path,
-        default=Path("datasets/tiny_shakespeare/input.txt"),
+        help="training text path (defaults depend on the selected dataset)",
+    )
+    parser.add_argument(
+        "--validation-path",
+        type=Path,
+        help="validation text path for TinyStories",
+    )
+    parser.add_argument(
+        "--max-train-characters",
+        type=int,
+        help="TinyStories train character limit; use 0 to load the entire file",
+    )
+    parser.add_argument(
+        "--max-validation-characters",
+        type=int,
+        help="TinyStories validation character limit; use 0 to load the entire file",
     )
     parser.add_argument("--steps", type=int)
     parser.add_argument("--batch-size", type=int, default=32)
@@ -41,8 +62,24 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--resume", type=Path)
     args = parser.parse_args()
 
+    if args.steps is not None and args.steps <= 0:
+        parser.error("--steps must be positive")
     if args.save_every <= 0:
         parser.error("--save-every must be positive")
+    if args.max_train_characters is not None and args.max_train_characters < 0:
+        parser.error("--max-train-characters must be non-negative")
+    if (
+        args.max_validation_characters is not None
+        and args.max_validation_characters < 0
+    ):
+        parser.error("--max-validation-characters must be non-negative")
+    if args.dataset != "tinystories" and args.validation_path is not None:
+        parser.error("--validation-path is only supported with the tinystories dataset")
+    if args.dataset != "tinystories" and (
+        args.max_train_characters is not None
+        or args.max_validation_characters is not None
+    ):
+        parser.error("character limits are only supported with the tinystories dataset")
     if args.dropout is not None and not 0.0 <= args.dropout < 1.0:
         parser.error("--dropout must be between 0.0 (inclusive) and 1.0 (exclusive)")
     if args.resume is not None and args.dropout is not None:
@@ -51,6 +88,42 @@ def parse_args() -> argparse.Namespace:
         )
 
     return args
+
+
+def read_text(path: Path, max_characters: int | None = None) -> str:
+    if not path.is_file():
+        raise FileNotFoundError(f"dataset file not found: {path}")
+
+    with path.open(encoding="utf-8") as file:
+        return file.read(max_characters)
+
+
+def character_limit(value: int | None, default: int) -> int | None:
+    if value == 0:
+        return None
+    return value if value is not None else default
+
+
+def encode_text(
+    tokenizer: CharacterTokenizer,
+    text: str,
+    device: torch.device,
+    split: str,
+) -> torch.Tensor:
+    try:
+        encoded_text = tokenizer.encode(text)
+    except KeyError as error:
+        missing_character = error.args[0]
+        raise ValueError(
+            f"{split} text contains a character absent from the tokenizer "
+            f"vocabulary: {missing_character!r}"
+        ) from error
+
+    return torch.tensor(
+        encoded_text,
+        dtype=torch.long,
+        device=device,
+    )
 
 
 def select_device() -> torch.device:
@@ -127,6 +200,9 @@ def main() -> None:
 
     if args.dataset == "toy":
         text = "hello world " * 100
+        split_index = int(len(text) * 0.9)
+        training_text = text[:split_index]
+        validation_text = text[split_index:]
         model_profile = "toy"
         ctx_length = 16
         embedding_dim = 64
@@ -139,7 +215,40 @@ def main() -> None:
         prompt = "hell"
         max_new_tokens = 40
     else:
-        text = args.path.read_text(encoding="utf-8")
+        if args.dataset == "shakespeare":
+            path = args.path if args.path is not None else SHAKESPEARE_PATH
+            text = read_text(path)
+            split_index = int(len(text) * 0.9)
+            training_text = text[:split_index]
+            validation_text = text[split_index:]
+            default_steps = 2_000
+            prompt = "ROMEO:"
+        else:
+            training_path = (
+                args.path if args.path is not None else TINY_STORIES_TRAIN_PATH
+            )
+            validation_path = (
+                args.validation_path
+                if args.validation_path is not None
+                else TINY_STORIES_VALIDATION_PATH
+            )
+            training_text = read_text(
+                training_path,
+                character_limit(
+                    args.max_train_characters,
+                    TINY_STORIES_TRAIN_CHARACTER_LIMIT,
+                ),
+            )
+            validation_text = read_text(
+                validation_path,
+                character_limit(
+                    args.max_validation_characters,
+                    TINY_STORIES_VALIDATION_CHARACTER_LIMIT,
+                ),
+            )
+            default_steps = 10_000
+            prompt = "Once upon a time"
+
         if device.type == "cuda":
             model_profile = "cuda-large"
             ctx_length = 512
@@ -156,8 +265,7 @@ def main() -> None:
             hidden_dim = 1536
         learning_rate = 3e-4
         weight_decay = 0.01
-        steps = args.steps if args.steps is not None else 2_000
-        prompt = "ROMEO:"
+        steps = args.steps if args.steps is not None else default_steps
         max_new_tokens = 300
 
     checkpoint_dir = args.checkpoint_dir
@@ -166,7 +274,7 @@ def main() -> None:
 
     if args.resume is None:
         dropout = args.dropout if args.dropout is not None else 0.1
-        tokenizer = CharacterTokenizer().fit(text)
+        tokenizer = CharacterTokenizer().fit(training_text)
         model = TinyGPT(
             vocab_size=tokenizer.vocab_size,
             ctx_length=ctx_length,
@@ -226,31 +334,29 @@ def main() -> None:
                     "scheduler; start a new training run to use a different horizon"
                 )
 
-    try:
-        encoded_text = tokenizer.encode(text)
-    except KeyError as error:
-        missing_character = error.args[0]
-        raise ValueError(
-            "dataset contains a character absent from the checkpoint tokenizer: "
-            f"{missing_character!r}"
-        ) from error
-
-    token_ids = torch.tensor(
-        encoded_text,
-        dtype=torch.long,
+    train_token_ids = encode_text(
+        tokenizer=tokenizer,
+        text=training_text,
         device=device,
+        split="training",
     )
-
-    split_index = int(len(token_ids) * 0.9)
-    train_token_ids = token_ids[:split_index]
-    validation_token_ids = token_ids[split_index:]
+    validation_token_ids = encode_text(
+        tokenizer=tokenizer,
+        text=validation_text,
+        device=device,
+        split="validation",
+    )
+    training_character_count = len(training_text)
+    validation_character_count = len(validation_text)
+    del training_text, validation_text
 
     parameter_count = sum(parameter.numel() for parameter in model.parameters())
 
     print(f"Device: {device}")
     print(f"Dataset: {args.dataset}")
     print(f"Model profile: {model_profile}")
-    print(f"Dataset characters: {len(text):,}")
+    print(f"Training characters: {training_character_count:,}")
+    print(f"Validation characters: {validation_character_count:,}")
     print(f"Vocabulary size: {tokenizer.vocab_size}")
     print(f"Context length: {ctx_length}")
     print(f"Embedding dimension: {model.embedding_dim}")
