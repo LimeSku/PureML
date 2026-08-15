@@ -1,5 +1,6 @@
 import argparse
 from pathlib import Path
+from time import perf_counter
 
 import torch
 
@@ -40,6 +41,13 @@ def select_device() -> torch.device:
         return torch.device("mps")
 
     return torch.device("cpu")
+
+
+def synchronize_device(device: torch.device) -> None:
+    if device.type == "cuda":
+        torch.cuda.synchronize(device)
+    elif device.type == "mps":
+        torch.mps.synchronize()
 
 
 def sample_batch(
@@ -194,6 +202,10 @@ def main() -> None:
     print(f"Context length: {ctx_length}")
     print(f"Parameters: {parameter_count:,}")
 
+    synchronize_device(device)
+    interval_started_at = perf_counter()
+    last_logged_step = 0
+
     for step in range(1, steps + 1):
         x_batch, y_batch = sample_batch(
             token_ids=train_token_ids,
@@ -209,6 +221,11 @@ def main() -> None:
         )
 
         if step == 1 or step % args.log_every == 0:
+            synchronize_device(device)
+            training_elapsed = perf_counter() - interval_started_at
+            interval_steps = step - last_logged_step
+            seconds_per_step = training_elapsed / interval_steps
+
             validation_loss = evaluate_language_model(
                 model=model,
                 token_ids=validation_token_ids,
@@ -219,8 +236,14 @@ def main() -> None:
             print(
                 f"Step {step:>4}/{steps} "
                 f"- train loss: {loss.item():.4f} "
-                f"- validation loss: {validation_loss:.4f}"
+                f"- validation loss: {validation_loss:.4f} "
+                f"- elapsed: {training_elapsed:.2f}s "
+                f"- {seconds_per_step:.3f}s/step"
             )
+
+            synchronize_device(device)
+            interval_started_at = perf_counter()
+            last_logged_step = step
 
     generated_ids = generate(
         model=model,
