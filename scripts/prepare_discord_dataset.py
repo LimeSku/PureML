@@ -11,6 +11,22 @@ from typing import Any
 CONVERSATION_START = "<CONVERSATION>"
 CONVERSATION_END = "<END_CONVERSATION>"
 INCLUDED_MESSAGE_TYPES = {"Default", "Reply"}
+RESERVED_SPEAKER_LABELS = {
+    "AUDIO",
+    "CHANNEL",
+    "CONVERSATION",
+    "EMBED",
+    "END_CONVERSATION",
+    "FILE",
+    "IMAGE",
+    "REPLY",
+    "ROLE",
+    "STICKER",
+    "TIMESTAMP",
+    "URL",
+    "USER_UNKNOWN",
+    "VIDEO",
+}
 IMAGE_EXTENSIONS = {".avif", ".bmp", ".gif", ".jpeg", ".jpg", ".png", ".webp"}
 VIDEO_EXTENSIONS = {".avi", ".m4v", ".mkv", ".mov", ".mp4", ".webm"}
 AUDIO_EXTENSIONS = {".aac", ".flac", ".m4a", ".mp3", ".ogg", ".wav"}
@@ -103,6 +119,14 @@ def parse_args() -> argparse.Namespace:
         "--include-system-messages",
         action="store_true",
         help="include Discord notification message types in addition to messages/replies",
+    )
+    parser.add_argument(
+        "--anonymize-speakers",
+        action=argparse.BooleanOptionalAction,
+        default=True,
+        help=(
+            "use USER_0001 aliases instead of Discord display names (default: enabled)"
+        ),
     )
     parser.add_argument(
         "--media-placeholders",
@@ -452,8 +476,46 @@ def most_common_text(values: Counter[str]) -> str:
     return min(values, key=lambda value: (-values[value], value))
 
 
+def sanitize_speaker_label(display_name: str) -> str:
+    normalized = unicodedata.normalize("NFC", display_name).strip()
+    label_characters = []
+    for character in normalized:
+        if character.isspace():
+            label_characters.append("_")
+        elif character not in "<>" and not unicodedata.category(character).startswith(
+            "C"
+        ):
+            label_characters.append(character)
+
+    label = re.sub(r"_+", "_", "".join(label_characters)).strip("_")
+    if not label:
+        label = "USER"
+    if label in RESERVED_SPEAKER_LABELS or label.startswith("REPLY_TO_"):
+        label = f"{label}_SPEAKER"
+    return label
+
+
+def build_display_name_labels(
+    author_ids: list[str],
+    display_names: dict[str, str],
+) -> dict[str, str]:
+    labels: dict[str, str] = {}
+    used_labels: set[str] = set()
+    for author_id in author_ids:
+        base_label = sanitize_speaker_label(display_names[author_id])
+        label = base_label
+        suffix = 2
+        while label in used_labels:
+            label = f"{base_label}_{suffix}"
+            suffix += 1
+        labels[author_id] = label
+        used_labels.add(label)
+    return labels
+
+
 def build_speaker_data(
     messages: list[DiscordMessage],
+    anonymize_speakers: bool,
 ) -> tuple[dict[str, str], dict[str, dict[str, Any]]]:
     names_by_author: dict[str, Counter[str]] = defaultdict(Counter)
     nicknames_by_author: dict[str, Counter[str]] = defaultdict(Counter)
@@ -469,16 +531,24 @@ def build_speaker_data(
         characters_by_author[message.author_id] += len(message.content)
 
     author_ids = sorted(names_by_author, key=discord_id_key)
-    aliases = {
-        author_id: f"USER_{index:04d}"
-        for index, author_id in enumerate(author_ids, start=1)
+    display_names = {
+        author_id: most_common_text(nicknames_by_author[author_id])
+        for author_id in author_ids
     }
+    if anonymize_speakers:
+        aliases = {
+            author_id: f"USER_{index:04d}"
+            for index, author_id in enumerate(author_ids, start=1)
+        }
+    else:
+        aliases = build_display_name_labels(author_ids, display_names)
+
     speaker_data = {}
     for author_id in author_ids:
         alias = aliases[author_id]
         speaker_data[alias] = {
             "author_id": author_id,
-            "display_name": most_common_text(nicknames_by_author[author_id]),
+            "display_name": display_names[author_id],
             "username": most_common_text(names_by_author[author_id]),
             "is_bot": bots_by_author[author_id],
             "message_count": messages_by_author[author_id],
@@ -615,7 +685,10 @@ def main() -> None:
     if not included_messages:
         raise ValueError("no usable messages remain after filtering")
 
-    aliases, speaker_data = build_speaker_data(included_messages)
+    aliases, speaker_data = build_speaker_data(
+        included_messages,
+        anonymize_speakers=args.anonymize_speakers,
+    )
     conversations = build_conversations(
         included_messages,
         session_gap=timedelta(minutes=args.session_gap_minutes),
@@ -644,6 +717,7 @@ def main() -> None:
                 "session_gap_minutes": args.session_gap_minutes,
                 "include_bots": args.include_bots,
                 "include_system_messages": args.include_system_messages,
+                "anonymize_speakers": args.anonymize_speakers,
                 "media_placeholders": args.media_placeholders,
                 "keep_urls": args.keep_urls,
             },

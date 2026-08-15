@@ -122,6 +122,10 @@ replaced with `<URL>`, and image, video, audio, file, sticker, and embed-only
 messages receive textual placeholders. A gap of 60 minutes starts a new
 conversation; configure it with `--session-gap-minutes`.
 
+Speaker names are anonymized by default. Keep Discord display names in the corpus
+with `--no-anonymize-speakers`; duplicate display names receive a numeric suffix.
+Only characters that could break the corpus markers are sanitized.
+
 The generated text uses explicit speaker and conversation markers:
 
 ```text
