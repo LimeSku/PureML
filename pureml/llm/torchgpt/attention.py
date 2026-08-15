@@ -54,19 +54,22 @@ class MultiHeadCausalSelfAttention(nn.Module):
         self.embedding_dim = embedding_dim
         self.num_heads = num_heads
         self.head_dim = embedding_dim // num_heads
-        self.heads = nn.ModuleList([
-            CausalSelfAttentionHead(
-                embedding_dim=embedding_dim,
-                head_dim=self.head_dim,
-                init_std=init_std,
-            )
-            for _ in range(num_heads)
-        ])
+        self.qkv = nn.Linear(
+            embedding_dim,
+            3 * embedding_dim,
+            bias=False,
+        )
         self.W_output = nn.Linear(
             embedding_dim,
             embedding_dim,
             bias=False,
         )
+        nn.init.normal_(
+            self.qkv.weight,
+            mean=0.0,
+            std=init_std,
+        )
+
         nn.init.normal_(
             self.W_output.weight,
             mean=0.0,
@@ -74,6 +77,40 @@ class MultiHeadCausalSelfAttention(nn.Module):
         )
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
-        head_outputs = [head(x) for head in self.heads]
-        concatenated = torch.cat(head_outputs, dim=-1)
-        return self.W_output(concatenated)
+        batch_size, sequence_length, _ = x.shape
+        query, key, value = self.qkv(x).chunk(
+            3,
+            dim=-1,
+        )
+        query = query.reshape(
+            batch_size,
+            sequence_length,
+            self.num_heads,
+            self.head_dim,
+        ).transpose(1, 2)
+
+        key = key.reshape(
+            batch_size,
+            sequence_length,
+            self.num_heads,
+            self.head_dim,
+        ).transpose(1, 2)
+
+        value = value.reshape(
+            batch_size,
+            sequence_length,
+            self.num_heads,
+            self.head_dim,
+        ).transpose(1, 2)
+        output = F.scaled_dot_product_attention(
+            query,
+            key,
+            value,
+            is_causal=True,
+        )
+        output = output.transpose(1, 2).reshape(
+            batch_size,
+            sequence_length,
+            self.embedding_dim,
+        )
+        return self.W_output(output)
