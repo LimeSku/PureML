@@ -72,6 +72,7 @@ uv run python experiments/llm/torchgpt_training.py shakespeare \
 uv run python experiments/llm/torchgpt_training.py shakespeare \
   --resume checkpoints/shakespeare/last.pt
 uv run python scripts/download_tiny_stories.py
+uv run python scripts/prepare_discord_dataset.py path/to/discord-exports
 uv run python experiments/llm/torchgpt_training.py tinystories \
   --checkpoint-dir checkpoints/tinystories
 uv run python experiments/llm/torchgpt_generation.py \
@@ -102,6 +103,52 @@ New TorchGPT runs share the token embedding matrix with the output projection
 by default. Use `--no-tie-embeddings` for an untied ablation. The setting is
 stored in checkpoints and restored automatically when training resumes; older
 checkpoints remain untied.
+
+### Discord chat corpus
+
+`prepare_discord_dataset.py` converts one or more JSON exports produced by
+[DiscordChatExporter](https://github.com/Tyrrrz/DiscordChatExporter) into a plain
+next-token corpus similar to Tiny Shakespeare:
+
+```bash
+uv run python scripts/prepare_discord_dataset.py path/to/discord-exports \
+  --output datasets/discord/input.txt
+```
+
+Directories are searched recursively, so partitioned exports can be passed as a
+single directory. Messages are sorted chronologically and deduplicated by Discord
+message ID. Bots and system notifications are excluded by default, full URLs are
+replaced with `<URL>`, and image, video, audio, file, sticker, and embed-only
+messages receive textual placeholders. A gap of 60 minutes starts a new
+conversation; configure it with `--session-gap-minutes`.
+
+The generated text uses explicit speaker and conversation markers:
+
+```text
+<CONVERSATION>
+<USER_0001>
+First message
+<USER_0002>
+Reply
+<END_CONVERSATION>
+```
+
+The output directory also receives `speakers.json`, which privately maps aliases
+to Discord identities, and `stats.json`, which reports corpus and per-speaker
+sizes without message contents. `datasets/discord/` is ignored by Git because all
+three files contain or describe private data.
+
+The resulting corpus can use the existing Shakespeare training path with BPE:
+
+```bash
+uv run python experiments/llm/torchgpt_training.py shakespeare \
+  --path datasets/discord/input.txt \
+  --tokenizer bpe \
+  --vocab-size 2048 \
+  --tokenizer-training-characters 2000000 \
+  --batch-size 8 \
+  --checkpoint-dir checkpoints/discord
+```
 
 ## Model Notes
 

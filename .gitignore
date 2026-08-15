@@ -219,4 +219,5 @@ __marimo__/
 # Streamlit
 .streamlit/secrets.toml
 checkpoints/
+datasets/discord/
 datasets/tiny_stories/
