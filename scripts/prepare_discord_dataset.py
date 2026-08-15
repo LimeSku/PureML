@@ -129,6 +129,12 @@ def parse_args() -> argparse.Namespace:
         ),
     )
     parser.add_argument(
+        "--reply-markers",
+        action=argparse.BooleanOptionalAction,
+        default=False,
+        help="emit <REPLY_TO_USER> markers before replies (default: disabled)",
+    )
+    parser.add_argument(
         "--media-placeholders",
         action=argparse.BooleanOptionalAction,
         default=True,
@@ -593,6 +599,7 @@ def render_corpus(
     conversations: list[Conversation],
     aliases: dict[str, str],
     messages_by_id: dict[str, DiscordMessage],
+    reply_markers: bool,
 ) -> int:
     output_path.parent.mkdir(parents=True, exist_ok=True)
     temporary_path = output_path.with_name(f"{output_path.name}.tmp")
@@ -609,7 +616,11 @@ def render_corpus(
             for message in conversation.messages:
                 alias = aliases[message.author_id]
                 content = sanitize_discord_markup(message.content, aliases)
-                marker = reply_marker(message, messages_by_id, aliases)
+                marker = (
+                    reply_marker(message, messages_by_id, aliases)
+                    if reply_markers
+                    else None
+                )
                 rendered_content = f"{marker}\n{content}" if marker else content
                 rendered_message = f"<{alias}>\n{rendered_content}\n"
                 output.write(rendered_message)
@@ -698,6 +709,7 @@ def main() -> None:
         conversations=conversations,
         aliases=aliases,
         messages_by_id=messages_by_id,
+        reply_markers=args.reply_markers,
     )
 
     write_json(
@@ -718,6 +730,7 @@ def main() -> None:
                 "include_bots": args.include_bots,
                 "include_system_messages": args.include_system_messages,
                 "anonymize_speakers": args.anonymize_speakers,
+                "reply_markers": args.reply_markers,
                 "media_placeholders": args.media_placeholders,
                 "keep_urls": args.keep_urls,
             },

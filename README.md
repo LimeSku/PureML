@@ -126,6 +126,11 @@ Speaker names are anonymized by default. Keep Discord display names in the corpu
 with `--no-anonymize-speakers`; duplicate display names receive a numeric suffix.
 Only characters that could break the corpus markers are sanitized.
 
+Reply targets are not emitted by default because the chronological context usually
+already carries the useful signal. Use `--reply-markers` to add
+`<REPLY_TO_SPEAKER>` markers when a downstream experiment explicitly consumes
+them.
+
 The generated text uses explicit speaker and conversation markers:
 
 ```text
