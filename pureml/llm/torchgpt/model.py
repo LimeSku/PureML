@@ -16,7 +16,8 @@ class TinyGPT(nn.Module):
         hidden_dim: int,
         init_std: float = 0.02,
         dropout: float = 0.0,
-    ):
+        tie_embeddings: bool = False,
+    ) -> None:
         super().__init__()
         self.vocab_size = vocab_size
         self.ctx_length = ctx_length
@@ -26,6 +27,7 @@ class TinyGPT(nn.Module):
         self.hidden_dim = hidden_dim
         self.init_std = init_std
         self.dropout = dropout
+        self.tie_embeddings = tie_embeddings
 
         self.embedding_layer = TokenPositionEmbedding(
             vocab_size=vocab_size,
@@ -33,20 +35,25 @@ class TinyGPT(nn.Module):
             embedding_dim=embedding_dim,
             dropout=dropout,
         )
-        self.blocks = nn.ModuleList([
-            TransformerBlock(
-                embedding_dim=embedding_dim,
-                num_heads=num_heads,
-                hidden_dim=hidden_dim,
-                init_std=init_std,
-                dropout=dropout,
-            )
-            for _ in range(num_layers)
-        ])
+        self.blocks = nn.ModuleList(
+            [
+                TransformerBlock(
+                    embedding_dim=embedding_dim,
+                    num_heads=num_heads,
+                    hidden_dim=hidden_dim,
+                    init_std=init_std,
+                    dropout=dropout,
+                )
+                for _ in range(num_layers)
+            ]
+        )
 
         self.final_layer_norm = nn.LayerNorm(embedding_dim)
         self.W_output = nn.Linear(embedding_dim, vocab_size, bias=True)
-        nn.init.normal_(self.W_output.weight, mean=0.0, std=init_std)
+        if tie_embeddings:
+            self.W_output.weight = self.embedding_layer.token_embedding_layer.weight
+        else:
+            nn.init.normal_(self.W_output.weight, mean=0.0, std=init_std)
         nn.init.zeros_(self.W_output.bias)
 
     def forward(self, token_ids: torch.Tensor) -> torch.Tensor:

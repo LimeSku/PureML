@@ -81,6 +81,12 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--eval-batches", type=int, default=10)
     parser.add_argument("--temperature", type=float, default=0.8)
     parser.add_argument("--dropout", type=float)
+    parser.add_argument(
+        "--tie-embeddings",
+        action=argparse.BooleanOptionalAction,
+        default=None,
+        help="share token embedding and output weights (enabled by default)",
+    )
     parser.add_argument("--checkpoint-dir", type=Path)
     parser.add_argument("--save-every", type=int, default=500)
     parser.add_argument("--resume", type=Path)
@@ -116,6 +122,11 @@ def parse_args() -> argparse.Namespace:
     if args.resume is not None and args.dropout is not None:
         parser.error(
             "--dropout cannot be used with --resume; it comes from the checkpoint"
+        )
+    if args.resume is not None and args.tie_embeddings is not None:
+        parser.error(
+            "--tie-embeddings cannot be used with --resume; "
+            "it comes from the checkpoint"
         )
     if args.resume is not None and any(
         value is not None
@@ -348,6 +359,9 @@ def main() -> None:
 
     if args.resume is None:
         dropout = args.dropout if args.dropout is not None else 0.1
+        tie_embeddings = (
+            args.tie_embeddings if args.tie_embeddings is not None else True
+        )
         selected_tokenizer = args.tokenizer
         if selected_tokenizer is None:
             selected_tokenizer = "bpe" if args.dataset == "tinystories" else "character"
@@ -374,6 +388,7 @@ def main() -> None:
             num_layers=num_layers,
             hidden_dim=hidden_dim,
             dropout=dropout,
+            tie_embeddings=tie_embeddings,
         ).to(device)
         optimizer = torch.optim.AdamW(
             model.parameters(),
@@ -463,6 +478,7 @@ def main() -> None:
     )
     print(f"Transformer layers: {model.num_layers}")
     print(f"Feed-forward dimension: {model.hidden_dim}")
+    print(f"Weight tying: {model.tie_embeddings}")
     print(f"Dropout: {model.dropout}")
     print(f"Learning rate: {optimizer.param_groups[0]['lr']:.2e}")
     print(f"Scheduler: cosine decay to {scheduler.eta_min:.2e}")
