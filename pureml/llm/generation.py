@@ -23,9 +23,9 @@ def generate(
         raise ValueError("top_k must be positive")
     for _ in range(max_new_tokens):
         context = generated[-model.ctx_length :]
-        logits = model(context)
+        logits = model(np.asarray(context)[None, :])
 
-        next_token_logits = logits[-1] / temperature
+        next_token_logits = logits[0, -1] / temperature
         if top_k is not None:
             k = min(top_k, len(next_token_logits))
             top_indices = np.argpartition(next_token_logits, -k)[-k:]

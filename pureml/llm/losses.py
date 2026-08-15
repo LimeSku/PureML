@@ -18,7 +18,13 @@ class SequenceCrossEntropy:
         """
         self.probs = self._softmax(logits)
         self.targets = targets
-        correct_probs = self.probs[np.arange(len(logits)), targets]
+        probs_flat = self.probs.reshape(-1, self.probs.shape[-1])
+        targets_flat = targets.reshape(-1)
+        # correct_probs = self.probs[np.arange(len(logits)), targets]
+        correct_probs = probs_flat[
+            np.arange(len(targets_flat)),
+            targets_flat,
+        ]
         return -np.mean(np.log(correct_probs + self.eps))
 
     def backward(self) -> np.ndarray:
@@ -42,10 +48,17 @@ class SequenceCrossEntropy:
         second term: exp(z_k) / sum_j exp(z_j) <=> p_k
         so finally dL/dlogits = probs - one_hot(target)
         """
-        n_tokens = self.probs.shape[0]
+        # n_tokens = self.probs.shape[0]
         dlogits = self.probs.copy()
-        dlogits[np.arange(n_tokens), self.targets] -= 1
-        dlogits /= n_tokens
+        dlogits_flat = dlogits.reshape(-1, dlogits.shape[-1])
+        targets_flat = self.targets.reshape(-1)
+        n_tokens = len(targets_flat)
+
+        # dlogits[np.arange(n_tokens), self.targets] -= 1
+        # dlogits /= n_tokens
+        dlogits_flat[np.arange(n_tokens), targets_flat] -= 1
+
+        dlogits_flat /= n_tokens
         return dlogits
 
     def _softmax(self, x: np.ndarray) -> np.ndarray:

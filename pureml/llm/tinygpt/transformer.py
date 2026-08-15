@@ -30,14 +30,23 @@ class FeedForward:
         return self.hidden @ self.W2 + self.b2
 
     def backward(self, dout: np.ndarray) -> np.ndarray:
-        self.dW2 = self.hidden.T @ dout
-        self.db2 = np.sum(dout, axis=0)
+        hidden_flat = self.hidden.reshape(-1, self.hidden.shape[-1])
+        dout_flat = dout.reshape(-1, dout.shape[-1])
+        self.dW2 = hidden_flat.T @ dout_flat
+        self.db2 = np.sum(dout_flat, axis=0)
         dhidden = dout @ self.W2.T
         dhidden_pre_activation = dhidden * self._gelu_derivative(
             self.hidden_pre_activation
         )
-        self.dW1 = self.x.T @ dhidden_pre_activation
-        self.db1 = np.sum(dhidden_pre_activation, axis=0)
+        x_flat = self.x.reshape(-1, self.x.shape[-1])
+        dhidden_flat = dhidden_pre_activation.reshape(
+            -1,
+            dhidden_pre_activation.shape[-1],
+        )
+        self.dW1 = x_flat.T @ dhidden_flat
+        self.db1 = np.sum(dhidden_flat, axis=0)
+        # self.dW1 = self.x.T @ dhidden_pre_activation
+        # self.db1 = np.sum(dhidden_pre_activation, axis=0)
         dx = dhidden_pre_activation @ self.W1.T
         return dx
 
@@ -98,8 +107,9 @@ class LayerNorm:
         return self.x_hat * self.gamma + self.beta
 
     def backward(self, dout: np.ndarray) -> np.ndarray:
-        self.dgamma = np.sum(dout * self.x_hat, axis=0)
-        self.dbeta = np.sum(dout, axis=0)
+        reduction_axes = tuple(range(dout.ndim - 1))
+        self.dgamma = np.sum(dout * self.x_hat, axis=reduction_axes)
+        self.dbeta = np.sum(dout, axis=reduction_axes)
         n_features = dout.shape[-1]  # last dimension = features
         dx_hat = dout * self.gamma
         dx = (

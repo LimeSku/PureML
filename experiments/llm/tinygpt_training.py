@@ -47,15 +47,14 @@ def evaluate_language_model(
     starts: np.ndarray,
 ) -> float:
     loss_fn = SequenceCrossEntropy()
-    losses = []
-
-    for start in starts:
-        x = token_ids[start : start + model.ctx_length]
-        y = np.asarray(token_ids[start + 1 : start + model.ctx_length + 1])
-        logits = model(x)
-        losses.append(loss_fn(logits, y))
-
-    return float(np.mean(losses))
+    x_batch = np.asarray(
+        [token_ids[start : start + model.ctx_length] for start in starts]
+    )
+    y_batch = np.asarray(
+        [token_ids[start + 1 : start + model.ctx_length + 1] for start in starts]
+    )
+    logits = model(x_batch)
+    return float(loss_fn(logits, y_batch))
 
 
 def main() -> None:
@@ -164,15 +163,12 @@ def main() -> None:
             max_start,
             size=args.batch_size,
         )
-        x_batch = [token_ids[start : start + ctx_length] for start in starts]
-        y_batch = [
-            np.asarray(token_ids[start + 1 : start + ctx_length + 1])
-            for start in starts
-        ]
-
-        # start = int(rng.integers(0, max_start))
-        # x = token_ids[start : start + ctx_length]
-        # y = np.array(token_ids[start + 1 : start + ctx_length + 1])
+        x_batch = np.asarray(
+            [token_ids[start : start + ctx_length] for start in starts]
+        )
+        y_batch = np.asarray(
+            [token_ids[start + 1 : start + ctx_length + 1] for start in starts]
+        )
         loss = train_language_model_batch(
             model,
             loss_fn,

@@ -18,12 +18,15 @@ class CausalSelfAttentionHead:
         K = x @ self.W_key
         V = x @ self.W_value
 
-        attention_scores = Q @ K.T
+        attention_scores = Q @ K.swapaxes(-2, -1)
         attention_scores = attention_scores / np.sqrt(self.head_dim)
 
-        T = x.shape[0]  # context length
-        mask = np.triu(np.ones((T, T)), k=1).astype(bool)
-        attention_scores[mask] = -np.inf
+        sequence_length = x.shape[-2]
+        mask = np.triu(
+            np.ones((sequence_length, sequence_length), dtype=bool),
+            k=1,
+        )
+        attention_scores = np.where(mask, -np.inf, attention_scores)
         attention_weights = self._softmax(attention_scores)
 
         self.x = x
@@ -36,19 +39,19 @@ class CausalSelfAttentionHead:
         return attention_weights @ V
 
     def backward(self, dout):
-        dweights = dout @ self.V.T
-        dV = self.weights.T @ dout
+        dweights = dout @ self.V.swapaxes(-2, -1)
+        dV = self.weights.swapaxes(-2, -1) @ dout
         dscores = self.weights * (
             dweights - np.sum(dweights * self.weights, axis=-1, keepdims=True)
         )
-        dscores[self.mask] = 0.0
+        dscores = np.where(self.mask, 0.0, dscores)
         dscores = dscores / np.sqrt(self.head_dim)
         dQ = dscores @ self.K
-        dK = dscores.T @ self.Q
-
-        self.dW_query = self.x.T @ dQ
-        self.dW_key = self.x.T @ dK
-        self.dW_value = self.x.T @ dV
+        dK = dscores.swapaxes(-2, -1) @ self.Q
+        x_flat = self.x.reshape(-1, self.embedding_dim)
+        self.dW_query = x_flat.T @ dQ.reshape(-1, self.head_dim)
+        self.dW_key = x_flat.T @ dK.reshape(-1, self.head_dim)
+        self.dW_value = x_flat.T @ dV.reshape(-1, self.head_dim)
 
         # dX = sum(gradients from all paths)
         dx = dQ @ self.W_query.T + dK @ self.W_key.T + dV @ self.W_value.T
@@ -105,14 +108,16 @@ class MultiHeadCausalSelfAttention:
 
     def forward(self, x: np.ndarray) -> np.ndarray:
         head_outputs = [head(x) for head in self.heads]
-        concatenated = np.concatenate(head_outputs, axis=1)
+        concatenated = np.concatenate(head_outputs, axis=-1)
         self.concatenated = concatenated
         return concatenated @ self.W_output
 
     def backward(self, dout):
-        self.dW_output = self.concatenated.T @ dout
+        concatenated_flat = self.concatenated.reshape(-1, self.embedding_dim)
+        dout_flat = dout.reshape(-1, self.embedding_dim)
+        self.dW_output = concatenated_flat.T @ dout_flat
         dconcatenated = dout @ self.W_output.T
-        head_grads = np.split(dconcatenated, self.num_heads, axis=1)
+        head_grads = np.split(dconcatenated, self.num_heads, axis=-1)
         dx = sum(
             head.backward(head_grad) for head, head_grad in zip(self.heads, head_grads)
         )

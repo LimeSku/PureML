@@ -17,17 +17,20 @@ class Embedding:
             size=(num_embeddings, embedding_dim),
         )
 
-    def __call__(self, token_ids: list[int]):
+    def __call__(self, token_ids: np.ndarray) -> np.ndarray:
         return self.forward(token_ids)
 
-    def forward(self, token_ids: list[int]) -> np.ndarray:
+    def forward(self, token_ids: np.ndarray) -> np.ndarray:
         self.token_ids = token_ids
         return self.weights[token_ids]
 
     def backward(self, dout: np.ndarray) -> None:
         self.dweights = np.zeros_like(self.weights)
-        for token_id, grad in zip(self.token_ids, dout):
-            self.dweights[token_id] += grad
+        np.add.at(
+            self.dweights,
+            self.token_ids.reshape(-1),
+            dout.reshape(-1, self.embedding_dim),
+        )
 
     def step(self, learning_rate: float) -> None:
         self.weights -= learning_rate * self.dweights
@@ -48,11 +51,18 @@ class llmEmbeddingLayer:
         self.token_embedding_layer = Embedding(vocab_size, embedding_dim)
         self.pos_embedding_layer = Embedding(ctx_length, embedding_dim, init_std=0.01)
 
-    def __call__(self, token_ids: list[int]) -> np.ndarray:
+    def __call__(self, token_ids: np.ndarray) -> np.ndarray:
         return self.forward(token_ids)
 
-    def forward(self, token_ids: list[int]) -> np.ndarray:
-        positions = list(range(len(token_ids)))
+    def forward(self, token_ids: np.ndarray) -> np.ndarray:
+        if token_ids.ndim != 2:
+            raise ValueError("token_ids must have shape (batch_size, sequence_length)")
+
+        batch_size, sequence_length = token_ids.shape
+        positions = np.broadcast_to(
+            np.arange(sequence_length),
+            (batch_size, sequence_length),
+        )
         token_embeddings = self.token_embedding_layer(token_ids)
         pos_embeddings = self.pos_embedding_layer(positions)
         return token_embeddings + pos_embeddings
@@ -76,5 +86,7 @@ class llmEmbeddingLayer:
         params.update(
             self.token_embedding_layer.named_parameters(f"{prefix}token_embedding.")
         )
-        params.update(self.pos_embedding_layer.named_parameters(f"{prefix}pos_embedding."))
+        params.update(
+            self.pos_embedding_layer.named_parameters(f"{prefix}pos_embedding.")
+        )
         return params

@@ -52,7 +52,7 @@ class TinyGPT:
     def __call__(self, token_ids: np.ndarray) -> np.ndarray:
         return self.forward(token_ids)
 
-    def forward(self, token_ids: list[int]) -> np.ndarray:
+    def forward(self, token_ids: np.ndarray) -> np.ndarray:
         x = self.embedding_layer(token_ids)
         for block in self.blocks:
             x = block(x)
@@ -62,8 +62,13 @@ class TinyGPT:
         return logits
 
     def backward(self, dlogits: np.ndarray) -> np.ndarray:
-        self.dW_output = self.last_hidden_state.T @ dlogits
-        self.db_output = np.sum(dlogits, axis=0)
+        hidden_flat = self.last_hidden_state.reshape(-1, self.embedding_dim)
+        dlogits_flat = dlogits.reshape(-1, self.vocab_size)
+
+        # self.dW_output = self.last_hidden_state.T @ dlogits
+        # self.db_output = np.sum(dlogits, axis=0)
+        self.dW_output = hidden_flat.T @ dlogits_flat
+        self.db_output = np.sum(dlogits_flat, axis=0)
         dx = dlogits @ self.W_output.T
         dx = self.final_layer_norm.backward(dx)
         for block in reversed(self.blocks):
