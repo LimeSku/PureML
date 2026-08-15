@@ -120,6 +120,7 @@ def main() -> None:
 
     if args.dataset == "toy":
         text = "hello world " * 100
+        model_profile = "toy"
         ctx_length = 16
         embedding_dim = 64
         num_heads = 4
@@ -132,11 +133,20 @@ def main() -> None:
         max_new_tokens = 40
     else:
         text = args.path.read_text(encoding="utf-8")
-        ctx_length = 256
-        embedding_dim = 384
-        num_heads = 6
-        num_layers = 6
-        hidden_dim = 1536
+        if device.type == "cuda":
+            model_profile = "cuda-large"
+            ctx_length = 512
+            embedding_dim = 512
+            num_heads = 8
+            num_layers = 8
+            hidden_dim = 2048
+        else:
+            model_profile = "standard"
+            ctx_length = 256
+            embedding_dim = 384
+            num_heads = 6
+            num_layers = 6
+            hidden_dim = 1536
         learning_rate = 3e-4
         weight_decay = 0.01
         steps = args.steps if args.steps is not None else 2_000
@@ -173,6 +183,7 @@ def main() -> None:
         optimizer = loaded_checkpoint.optimizer
         tokenizer = loaded_checkpoint.tokenizer
         ctx_length = model.ctx_length
+        model_profile = "checkpoint"
         start_step = loaded_checkpoint.step + 1
         best_validation_loss = loaded_checkpoint.best_validation_loss
 
@@ -199,9 +210,17 @@ def main() -> None:
 
     print(f"Device: {device}")
     print(f"Dataset: {args.dataset}")
+    print(f"Model profile: {model_profile}")
     print(f"Dataset characters: {len(text):,}")
     print(f"Vocabulary size: {tokenizer.vocab_size}")
     print(f"Context length: {ctx_length}")
+    print(f"Embedding dimension: {model.embedding_dim}")
+    print(
+        f"Attention heads: {model.num_heads} "
+        f"(head dimension: {model.embedding_dim // model.num_heads})"
+    )
+    print(f"Transformer layers: {model.num_layers}")
+    print(f"Feed-forward dimension: {model.hidden_dim}")
     print(f"Parameters: {parameter_count:,}")
     if args.resume is not None:
         print(f"Resumed from: {args.resume} (step {start_step - 1})")
