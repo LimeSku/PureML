@@ -3,6 +3,7 @@ from torch import nn
 from torch.nn import functional as F
 
 from pureml.llm.torchgpt.attention import MultiHeadCausalSelfAttention
+from pureml.llm.torchgpt.position import PositionEncoding
 
 
 class FeedForward(nn.Module):
@@ -31,7 +32,8 @@ class TransformerBlock(nn.Module):
         hidden_dim: int,
         init_std: float = 0.02,
         dropout: float = 0.0,
-    ):
+        position_encoding: PositionEncoding = "learned",
+    ) -> None:
         super().__init__()
         self.ln1 = nn.LayerNorm(embedding_dim)
         self.attention = MultiHeadCausalSelfAttention(
@@ -39,6 +41,7 @@ class TransformerBlock(nn.Module):
             num_heads=num_heads,
             init_std=init_std,
             dropout=dropout,
+            position_encoding=position_encoding,
         )
 
         self.ln2 = nn.LayerNorm(embedding_dim)

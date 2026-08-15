@@ -2,6 +2,7 @@ import torch
 from torch import nn
 
 from pureml.llm.torchgpt.embeddings import TokenPositionEmbedding
+from pureml.llm.torchgpt.position import PositionEncoding
 from pureml.llm.torchgpt.transformer import TransformerBlock
 
 
@@ -17,6 +18,7 @@ class TinyGPT(nn.Module):
         init_std: float = 0.02,
         dropout: float = 0.0,
         tie_embeddings: bool = False,
+        position_encoding: PositionEncoding = "learned",
     ) -> None:
         super().__init__()
         self.vocab_size = vocab_size
@@ -28,12 +30,14 @@ class TinyGPT(nn.Module):
         self.init_std = init_std
         self.dropout = dropout
         self.tie_embeddings = tie_embeddings
+        self.position_encoding = position_encoding
 
         self.embedding_layer = TokenPositionEmbedding(
             vocab_size=vocab_size,
             ctx_length=ctx_length,
             embedding_dim=embedding_dim,
             dropout=dropout,
+            position_encoding=position_encoding,
         )
         self.blocks = nn.ModuleList(
             [
@@ -43,6 +47,7 @@ class TinyGPT(nn.Module):
                     hidden_dim=hidden_dim,
                     init_std=init_std,
                     dropout=dropout,
+                    position_encoding=position_encoding,
                 )
                 for _ in range(num_layers)
             ]

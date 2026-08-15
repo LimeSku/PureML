@@ -104,6 +104,12 @@ by default. Use `--no-tie-embeddings` for an untied ablation. The setting is
 stored in checkpoints and restored automatically when training resumes; older
 checkpoints remain untied.
 
+New TorchGPT runs also use rotary position embeddings (RoPE) by default. RoPE
+rotates each attention head's queries and keys instead of adding a learned
+position table to the token embeddings. Use `--position-encoding learned` for
+an ablation with the previous implementation. The setting is stored in
+checkpoints, and older checkpoints keep using learned positional embeddings.
+
 ### Discord chat corpus
 
 `prepare_discord_dataset.py` converts one or more JSON exports produced by
