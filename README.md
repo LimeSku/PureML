@@ -131,6 +131,13 @@ already carries the useful signal. Use `--reply-markers` to add
 `<REPLY_TO_SPEAKER>` markers when a downstream experiment explicitly consumes
 them.
 
+Short consecutive messages from the same speaker are merged into one speaker block
+by default. Each message is limited to 160 characters, messages must be at most 60
+seconds apart, and the resulting block is limited to 400 characters. Configure
+this with `--merge-message-max-characters`, `--merge-message-gap-seconds`, and
+`--merged-block-max-characters`, or disable it with
+`--no-merge-consecutive-messages`.
+
 The generated text uses explicit speaker and conversation markers:
 
 ```text

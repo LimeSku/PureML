@@ -135,6 +135,30 @@ def parse_args() -> argparse.Namespace:
         help="emit <REPLY_TO_USER> markers before replies (default: disabled)",
     )
     parser.add_argument(
+        "--merge-consecutive-messages",
+        action=argparse.BooleanOptionalAction,
+        default=True,
+        help="merge short consecutive messages from the same speaker (default: enabled)",
+    )
+    parser.add_argument(
+        "--merge-message-gap-seconds",
+        type=float,
+        default=60.0,
+        help="maximum gap between messages merged into one speaker block (default: 60)",
+    )
+    parser.add_argument(
+        "--merge-message-max-characters",
+        type=int,
+        default=160,
+        help="maximum size of each message eligible for merging (default: 160)",
+    )
+    parser.add_argument(
+        "--merged-block-max-characters",
+        type=int,
+        default=400,
+        help="maximum combined size of a merged speaker block (default: 400)",
+    )
+    parser.add_argument(
         "--media-placeholders",
         action=argparse.BooleanOptionalAction,
         default=True,
@@ -149,6 +173,12 @@ def parse_args() -> argparse.Namespace:
 
     if args.session_gap_minutes <= 0:
         parser.error("--session-gap-minutes must be positive")
+    if args.merge_message_gap_seconds <= 0:
+        parser.error("--merge-message-gap-seconds must be positive")
+    if args.merge_message_max_characters <= 0:
+        parser.error("--merge-message-max-characters must be positive")
+    if args.merged_block_max_characters <= 0:
+        parser.error("--merged-block-max-characters must be positive")
 
     return args
 
@@ -594,16 +624,58 @@ def reply_marker(
     return f"<REPLY_TO_{referenced_alias}>"
 
 
+def build_message_blocks(
+    messages: tuple[DiscordMessage, ...],
+    merge_consecutive_messages: bool,
+    merge_message_gap: timedelta,
+    merge_message_max_characters: int,
+    merged_block_max_characters: int,
+) -> list[tuple[DiscordMessage, ...]]:
+    blocks: list[list[DiscordMessage]] = []
+    block_character_counts: list[int] = []
+
+    for message in messages:
+        if not blocks:
+            blocks.append([message])
+            block_character_counts.append(len(message.content))
+            continue
+
+        current_block = blocks[-1]
+        previous_message = current_block[-1]
+        combined_character_count = block_character_counts[-1] + 1 + len(message.content)
+        should_merge = (
+            merge_consecutive_messages
+            and message.author_id == previous_message.author_id
+            and message.timestamp - previous_message.timestamp <= merge_message_gap
+            and len(previous_message.content) <= merge_message_max_characters
+            and len(message.content) <= merge_message_max_characters
+            and combined_character_count <= merged_block_max_characters
+        )
+        if should_merge:
+            current_block.append(message)
+            block_character_counts[-1] = combined_character_count
+        else:
+            blocks.append([message])
+            block_character_counts.append(len(message.content))
+
+    return [tuple(block) for block in blocks]
+
+
 def render_corpus(
     output_path: Path,
     conversations: list[Conversation],
     aliases: dict[str, str],
     messages_by_id: dict[str, DiscordMessage],
     reply_markers: bool,
-) -> int:
+    merge_consecutive_messages: bool,
+    merge_message_gap: timedelta,
+    merge_message_max_characters: int,
+    merged_block_max_characters: int,
+) -> tuple[int, int]:
     output_path.parent.mkdir(parents=True, exist_ok=True)
     temporary_path = output_path.with_name(f"{output_path.name}.tmp")
     character_count = 0
+    speaker_block_count = 0
 
     with temporary_path.open("w", encoding="utf-8", newline="\n") as output:
         for conversation_index, conversation in enumerate(conversations):
@@ -613,15 +685,29 @@ def render_corpus(
 
             output.write(f"{CONVERSATION_START}\n")
             character_count += len(CONVERSATION_START) + 1
-            for message in conversation.messages:
-                alias = aliases[message.author_id]
-                content = sanitize_discord_markup(message.content, aliases)
-                marker = (
-                    reply_marker(message, messages_by_id, aliases)
-                    if reply_markers
-                    else None
-                )
-                rendered_content = f"{marker}\n{content}" if marker else content
+            message_blocks = build_message_blocks(
+                conversation.messages,
+                merge_consecutive_messages=merge_consecutive_messages,
+                merge_message_gap=merge_message_gap,
+                merge_message_max_characters=merge_message_max_characters,
+                merged_block_max_characters=merged_block_max_characters,
+            )
+            speaker_block_count += len(message_blocks)
+            for message_block in message_blocks:
+                alias = aliases[message_block[0].author_id]
+                rendered_contents = []
+                for message in message_block:
+                    content = sanitize_discord_markup(message.content, aliases)
+                    marker = (
+                        reply_marker(message, messages_by_id, aliases)
+                        if reply_markers
+                        else None
+                    )
+                    rendered_contents.append(
+                        f"{marker}\n{content}" if marker else content
+                    )
+
+                rendered_content = "\n".join(rendered_contents)
                 rendered_message = f"<{alias}>\n{rendered_content}\n"
                 output.write(rendered_message)
                 character_count += len(rendered_message)
@@ -630,7 +716,7 @@ def render_corpus(
             character_count += len(CONVERSATION_END)
 
     temporary_path.replace(output_path)
-    return character_count
+    return character_count, speaker_block_count
 
 
 def write_json(path: Path, payload: dict[str, Any]) -> None:
@@ -704,12 +790,16 @@ def main() -> None:
         included_messages,
         session_gap=timedelta(minutes=args.session_gap_minutes),
     )
-    character_count = render_corpus(
+    character_count, speaker_block_count = render_corpus(
         output_path,
         conversations=conversations,
         aliases=aliases,
         messages_by_id=messages_by_id,
         reply_markers=args.reply_markers,
+        merge_consecutive_messages=args.merge_consecutive_messages,
+        merge_message_gap=timedelta(seconds=args.merge_message_gap_seconds),
+        merge_message_max_characters=args.merge_message_max_characters,
+        merged_block_max_characters=args.merged_block_max_characters,
     )
 
     write_json(
@@ -731,6 +821,10 @@ def main() -> None:
                 "include_system_messages": args.include_system_messages,
                 "anonymize_speakers": args.anonymize_speakers,
                 "reply_markers": args.reply_markers,
+                "merge_consecutive_messages": args.merge_consecutive_messages,
+                "merge_message_gap_seconds": args.merge_message_gap_seconds,
+                "merge_message_max_characters": args.merge_message_max_characters,
+                "merged_block_max_characters": args.merged_block_max_characters,
                 "media_placeholders": args.media_placeholders,
                 "keep_urls": args.keep_urls,
             },
@@ -745,6 +839,8 @@ def main() -> None:
                 ),
                 "skipped_empty_messages": skipped_empty_messages,
                 "included_messages": len(included_messages),
+                "speaker_blocks": speaker_block_count,
+                "merged_messages": len(included_messages) - speaker_block_count,
                 "speakers": len(aliases),
                 "channels": len({message.channel_id for message in included_messages}),
                 "conversations": len(conversations),
@@ -766,6 +862,10 @@ def main() -> None:
     print(f"Removed {duplicate_count:,} duplicate message(s)")
     print(
         f"Wrote {len(included_messages):,} message(s) in {len(conversations):,} conversation(s)"
+    )
+    print(
+        f"Speaker blocks: {speaker_block_count:,} "
+        f"({len(included_messages) - speaker_block_count:,} message(s) merged)"
     )
     print(f"Corpus characters: {character_count:,}")
     print(f"Corpus: {output_path}")
