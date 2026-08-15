@@ -9,6 +9,15 @@ dependencies = [
     "textual>=8.2.8",
     "torch>=2.13.0",
 ]
+[tool.uv.sources]
+torch = [
+    { index = "pytorch-cu129", marker = "sys_platform == 'win32'" },
+]
+
+[[tool.uv.index]]
+name = "pytorch-cu129"
+url = "https://download.pytorch.org/whl/cu129"
+explicit = true
 
 [project.scripts]
 pureml-tui = "pureml.tui.app:main"
