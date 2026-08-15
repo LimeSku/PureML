@@ -46,7 +46,9 @@ def parse_args() -> argparse.Namespace:
     if args.dropout is not None and not 0.0 <= args.dropout < 1.0:
         parser.error("--dropout must be between 0.0 (inclusive) and 1.0 (exclusive)")
     if args.resume is not None and args.dropout is not None:
-        parser.error("--dropout cannot be used with --resume; it comes from the checkpoint")
+        parser.error(
+            "--dropout cannot be used with --resume; it comes from the checkpoint"
+        )
 
     return args
 
@@ -179,6 +181,11 @@ def main() -> None:
             lr=learning_rate,
             weight_decay=weight_decay,
         )
+        scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(
+            optimizer=optimizer,
+            T_max=steps,
+            eta_min=3e-5,
+        )
         start_step = 1
         best_validation_loss = float("inf")
     else:
@@ -193,6 +200,31 @@ def main() -> None:
         model_profile = "checkpoint"
         start_step = loaded_checkpoint.step + 1
         best_validation_loss = loaded_checkpoint.best_validation_loss
+
+        if loaded_checkpoint.scheduler is None:
+            remaining_steps = max(1, steps - loaded_checkpoint.step)
+            scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(
+                optimizer=optimizer,
+                T_max=remaining_steps,
+                eta_min=3e-5,
+            )
+            print(
+                "Checkpoint has no scheduler state; initialized cosine decay "
+                f"for the remaining {remaining_steps} step(s)."
+            )
+        else:
+            scheduler = loaded_checkpoint.scheduler
+            scheduler_target_step = loaded_checkpoint.step + max(
+                scheduler.T_max - scheduler.last_epoch,
+                0,
+            )
+            if args.steps is None:
+                steps = scheduler_target_step
+            elif steps != scheduler_target_step:
+                raise ValueError(
+                    f"--steps must be {scheduler_target_step} when resuming this "
+                    "scheduler; start a new training run to use a different horizon"
+                )
 
     try:
         encoded_text = tokenizer.encode(text)
@@ -229,6 +261,8 @@ def main() -> None:
     print(f"Transformer layers: {model.num_layers}")
     print(f"Feed-forward dimension: {model.hidden_dim}")
     print(f"Dropout: {model.dropout}")
+    print(f"Learning rate: {optimizer.param_groups[0]['lr']:.2e}")
+    print(f"Scheduler: cosine decay to {scheduler.eta_min:.2e}")
     print(f"Parameters: {parameter_count:,}")
     if args.resume is not None:
         print(f"Resumed from: {args.resume} (step {start_step - 1})")
@@ -252,6 +286,7 @@ def main() -> None:
             y_batch=y_batch,
             max_grad_norm=1.0,
         )
+        scheduler.step()
 
         logged_this_step = step == 1 or step % args.log_every == 0
         if logged_this_step:
@@ -271,6 +306,7 @@ def main() -> None:
                 f"Step {step:>4}/{steps} "
                 f"- train loss: {loss.item():.4f} "
                 f"- validation loss: {validation_loss:.4f} "
+                f"- learning rate: {scheduler.get_last_lr()[0]:.2e} "
                 f"- elapsed: {training_elapsed:.2f}s "
                 f"- {seconds_per_step:.3f}s/step"
             )
@@ -283,6 +319,7 @@ def main() -> None:
                         best_checkpoint_path,
                         model=model,
                         optimizer=optimizer,
+                        scheduler=scheduler,
                         tokenizer=tokenizer,
                         step=step,
                         best_validation_loss=best_validation_loss,
@@ -298,6 +335,7 @@ def main() -> None:
                 last_checkpoint_path,
                 model=model,
                 optimizer=optimizer,
+                scheduler=scheduler,
                 tokenizer=tokenizer,
                 step=step,
                 best_validation_loss=best_validation_loss,

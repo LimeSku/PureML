@@ -4,6 +4,7 @@ from typing import Any
 
 import torch
 from torch.optim import Optimizer
+from torch.optim.lr_scheduler import CosineAnnealingLR
 
 from pureml.llm.tokenization import CharacterTokenizer
 from pureml.llm.torchgpt.model import TinyGPT
@@ -22,6 +23,7 @@ class LoadedModelCheckpoint:
 @dataclass(frozen=True)
 class LoadedTrainingCheckpoint(LoadedModelCheckpoint):
     optimizer: Optimizer
+    scheduler: CosineAnnealingLR | None
 
 
 def save_training_checkpoint(
@@ -29,6 +31,7 @@ def save_training_checkpoint(
     *,
     model: TinyGPT,
     optimizer: Optimizer,
+    scheduler: CosineAnnealingLR,
     tokenizer: CharacterTokenizer,
     step: int,
     best_validation_loss: float,
@@ -58,6 +61,8 @@ def save_training_checkpoint(
         "model_state_dict": model.state_dict(),
         "optimizer_type": type(optimizer).__name__,
         "optimizer_state_dict": optimizer.state_dict(),
+        "scheduler_type": type(scheduler).__name__,
+        "scheduler_state_dict": scheduler.state_dict(),
         "tokenizer_type": "character",
         "tokenizer_characters": tokenizer_characters,
         "step": step,
@@ -87,6 +92,8 @@ def load_training_checkpoint(
     optimizer = torch.optim.AdamW(model.parameters())
     optimizer.load_state_dict(checkpoint["optimizer_state_dict"])
 
+    scheduler = _load_scheduler(checkpoint, optimizer)
+
     torch.set_rng_state(checkpoint["cpu_rng_state"].cpu())
     _set_device_rng_state(
         device=device,
@@ -97,10 +104,34 @@ def load_training_checkpoint(
     return LoadedTrainingCheckpoint(
         model=model,
         optimizer=optimizer,
+        scheduler=scheduler,
         tokenizer=tokenizer,
         step=checkpoint["step"],
         best_validation_loss=checkpoint["best_validation_loss"],
     )
+
+
+def _load_scheduler(
+    checkpoint: dict[str, Any],
+    optimizer: Optimizer,
+) -> CosineAnnealingLR | None:
+    scheduler_type = checkpoint.get("scheduler_type")
+    scheduler_state = checkpoint.get("scheduler_state_dict")
+
+    if scheduler_type is None and scheduler_state is None:
+        return None
+    if scheduler_type != "CosineAnnealingLR":
+        raise ValueError(f"unsupported scheduler: {scheduler_type!r}")
+    if not isinstance(scheduler_state, dict):
+        raise ValueError("invalid scheduler state in checkpoint")
+
+    scheduler = CosineAnnealingLR(
+        optimizer=optimizer,
+        T_max=scheduler_state["T_max"],
+        eta_min=scheduler_state["eta_min"],
+    )
+    scheduler.load_state_dict(scheduler_state)
+    return scheduler
 
 
 def load_model_checkpoint(
