@@ -1,0 +1,79 @@
+import torch
+from torch import nn
+from torch.nn import functional as F
+
+
+class CausalSelfAttentionHead(nn.Module):
+    def __init__(self, embedding_dim: int, head_dim: int, init_std: float = 0.02):
+        super().__init__()
+        self.embedding_dim = embedding_dim
+        self.head_dim = head_dim
+
+        self.W_query = nn.Linear(embedding_dim, head_dim, bias=False)
+        self.W_key = nn.Linear(embedding_dim, head_dim, bias=False)
+        self.W_value = nn.Linear(embedding_dim, head_dim, bias=False)
+        nn.init.normal_(self.W_query.weight, mean=0.0, std=init_std)
+        nn.init.normal_(self.W_key.weight, mean=0.0, std=init_std)
+        nn.init.normal_(self.W_value.weight, mean=0.0, std=init_std)
+
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        Q = self.W_query(x)
+        K = self.W_key(x)
+        V = self.W_value(x)
+
+        attention_scores = Q @ K.transpose(-2, -1)
+        attention_scores = attention_scores / (self.head_dim**0.5)
+
+        sequence_length = x.shape[-2]
+        mask = torch.triu(
+            torch.ones(sequence_length, sequence_length, dtype=bool, device=x.device),
+            diagonal=1,
+        )
+        # attention_scores = np.where(mask, -np.inf, attention_scores)
+        attention_scores = attention_scores.masked_fill(mask, float("-inf"))
+        # attention_weights = self._softmax(attention_scores)
+        attention_weights = F.softmax(attention_scores, dim=-1)
+
+        return attention_weights @ V
+
+
+class MultiHeadCausalSelfAttention(nn.Module):
+    def __init__(
+        self,
+        embedding_dim: int,
+        num_heads: int,
+        init_std: float = 0.02,
+    ) -> None:
+        super().__init__()
+
+        if num_heads <= 0:
+            raise ValueError("num_heads must be positive")
+        if embedding_dim % num_heads != 0:
+            raise ValueError("embedding_dim must be divisible by num_heads")
+
+        self.embedding_dim = embedding_dim
+        self.num_heads = num_heads
+        self.head_dim = embedding_dim // num_heads
+        self.heads = nn.ModuleList([
+            CausalSelfAttentionHead(
+                embedding_dim=embedding_dim,
+                head_dim=self.head_dim,
+                init_std=init_std,
+            )
+            for _ in range(num_heads)
+        ])
+        self.W_output = nn.Linear(
+            embedding_dim,
+            embedding_dim,
+            bias=False,
+        )
+        nn.init.normal_(
+            self.W_output.weight,
+            mean=0.0,
+            std=init_std,
+        )
+
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        head_outputs = [head(x) for head in self.heads]
+        concatenated = torch.cat(head_outputs, dim=-1)
+        return self.W_output(concatenated)
