@@ -23,6 +23,7 @@ Implemented:
   - MLP classifier with backpropagation
 - TinyGPT-style language model components:
   - character tokenizer
+  - byte-pair tokenizer
   - language-model dataset
   - embeddings
   - causal self-attention
@@ -85,9 +86,17 @@ steps.
 The TinyStories downloader retrieves the GPT-4 train and validation files from
 the official Hugging Face dataset. They use about 2.25 GB of disk space. By
 default, the training experiment loads the first 25 million training characters
-and 2 million validation characters, and trains for 10,000 steps. Use
+and 2 million validation characters, trains a 1,024-token BPE vocabulary on the
+first million training characters, and trains the model for 10,000 steps. Use
 `--max-train-characters` and `--max-validation-characters` to change these
 limits; a value of `0` loads the entire corresponding file.
+
+TinyStories uses BPE by default. Shakespeare and the toy dataset keep the
+character tokenizer unless `--tokenizer bpe` is passed. Configure BPE with
+`--vocab-size` and `--tokenizer-training-characters`, or use
+`--tokenizer character` to compare both approaches. Training checkpoints store
+the tokenizer type and BPE merge rules, so resumed runs recover the exact same
+tokenization automatically.
 
 ## Model Notes
 
