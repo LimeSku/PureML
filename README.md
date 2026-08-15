@@ -98,6 +98,11 @@ character tokenizer unless `--tokenizer bpe` is passed. Configure BPE with
 the tokenizer type and BPE merge rules, so resumed runs recover the exact same
 tokenization automatically.
 
+New TorchGPT runs share the token embedding matrix with the output projection
+by default. Use `--no-tie-embeddings` for an untied ablation. The setting is
+stored in checkpoints and restored automatically when training resumes; older
+checkpoints remain untied.
+
 ## Model Notes
 
 ```text
