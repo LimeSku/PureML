@@ -10,6 +10,8 @@ from pureml.llm.tokenization import (
     TextTokenizer,
 )
 from pureml.llm.torchgpt.checkpoint import (
+    SchedulerConfig,
+    create_warmup_cosine_scheduler,
     load_training_checkpoint,
     save_training_checkpoint,
 )
@@ -408,12 +410,21 @@ def main() -> None:
             model.parameters(),
             lr=learning_rate,
             weight_decay=weight_decay,
+            betas=(0.9, 0.95),
         )
-        scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(
-            optimizer=optimizer,
-            T_max=steps,
-            eta_min=3e-5,
+        scheduler_config = SchedulerConfig(
+            total_steps=steps,
+            warmup_steps=min(300, steps - 1),
+            minimum_lr=3e-5,
         )
+        if scheduler_config.warmup_steps == 0:
+            scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(
+                optimizer=optimizer,
+                T_max=scheduler_config.total_steps,
+                eta_min=scheduler_config.minimum_lr,
+            )
+        else:
+            scheduler = create_warmup_cosine_scheduler(optimizer, scheduler_config)
         start_step = 1
         best_validation_loss = float("inf")
     else:
@@ -432,10 +443,15 @@ def main() -> None:
 
         if loaded_checkpoint.scheduler is None:
             remaining_steps = max(1, steps - loaded_checkpoint.step)
+            scheduler_config = SchedulerConfig(
+                total_steps=steps,
+                warmup_steps=0,
+                minimum_lr=3e-5,
+            )
             scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(
                 optimizer=optimizer,
                 T_max=remaining_steps,
-                eta_min=3e-5,
+                eta_min=scheduler_config.minimum_lr,
             )
             print(
                 "Checkpoint has no scheduler state; initialized cosine decay "
@@ -443,10 +459,26 @@ def main() -> None:
             )
         else:
             scheduler = loaded_checkpoint.scheduler
-            scheduler_target_step = loaded_checkpoint.step + max(
-                scheduler.T_max - scheduler.last_epoch,
-                0,
-            )
+            scheduler_config = loaded_checkpoint.scheduler_config
+            if scheduler_config is None:
+                if not isinstance(
+                    scheduler,
+                    torch.optim.lr_scheduler.CosineAnnealingLR,
+                ):
+                    raise ValueError(
+                        "checkpoint scheduler has no serialized configuration"
+                    )
+                scheduler_target_step = loaded_checkpoint.step + max(
+                    scheduler.T_max - scheduler.last_epoch,
+                    0,
+                )
+                scheduler_config = SchedulerConfig(
+                    total_steps=scheduler_target_step,
+                    warmup_steps=0,
+                    minimum_lr=scheduler.eta_min,
+                )
+            else:
+                scheduler_target_step = scheduler_config.total_steps
             if args.steps is None:
                 steps = scheduler_target_step
             elif steps != scheduler_target_step:
@@ -496,7 +528,13 @@ def main() -> None:
     print(f"Position encoding: {model.position_encoding}")
     print(f"Dropout: {model.dropout}")
     print(f"Learning rate: {optimizer.param_groups[0]['lr']:.2e}")
-    print(f"Scheduler: cosine decay to {scheduler.eta_min:.2e}")
+    if scheduler_config.warmup_steps > 0:
+        print(
+            f"Scheduler: {scheduler_config.warmup_steps}-step linear warmup, "
+            f"then cosine decay to {scheduler_config.minimum_lr:.2e}"
+        )
+    else:
+        print(f"Scheduler: cosine decay to {scheduler_config.minimum_lr:.2e}")
     print(f"Parameters: {parameter_count:,}")
     if args.resume is not None:
         print(f"Resumed from: {args.resume} (step {start_step - 1})")
@@ -554,6 +592,7 @@ def main() -> None:
                         model=model,
                         optimizer=optimizer,
                         scheduler=scheduler,
+                        scheduler_config=scheduler_config,
                         tokenizer=tokenizer,
                         step=step,
                         best_validation_loss=best_validation_loss,
@@ -570,6 +609,7 @@ def main() -> None:
                 model=model,
                 optimizer=optimizer,
                 scheduler=scheduler,
+                scheduler_config=scheduler_config,
                 tokenizer=tokenizer,
                 step=step,
                 best_validation_loss=best_validation_loss,
