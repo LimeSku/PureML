@@ -110,6 +110,15 @@ position table to the token embeddings. Use `--position-encoding learned` for
 an ablation with the previous implementation. The setting is stored in
 checkpoints, and older checkpoints keep using learned positional embeddings.
 
+TorchGPT transformer blocks use SwiGLU feed-forward layers, with a 1,408-unit
+hidden dimension for CUDA runs and 1,024 units for the standard profile. Since
+SwiGLU changes the feed-forward projection shapes, pre-SwiGLU checkpoints are
+not compatible with the current model.
+
+New runs use AdamW with betas `(0.9, 0.95)`, up to 300 steps of linear learning
+rate warmup, and cosine decay to `3e-5`. Checkpoints store the total step count,
+warmup duration, and minimum learning rate so the schedule resumes exactly.
+
 ### Discord chat corpus
 
 `prepare_discord_dataset.py` converts one or more JSON exports produced by
