@@ -10,6 +10,7 @@ def generate(
     max_new_tokens: int,
     temperature: float,
     device: torch.device,
+    autocast_dtype: torch.dtype | None = None,
 ) -> list[int]:
     if not prompt_ids:
         raise ValueError("prompt_ids must not be empty")
@@ -28,8 +29,13 @@ def generate(
 
     for _ in range(max_new_tokens):
         context = generated[:, -model.ctx_length :]
-        logits = model(context)
-        next_token_logits = logits[:, -1] / temperature
+        with torch.autocast(
+            device_type=context.device.type,
+            dtype=autocast_dtype,
+            enabled=autocast_dtype is not None,
+        ):
+            logits = model(context)
+        next_token_logits = logits[:, -1].float() / temperature
         probabilities = torch.softmax(next_token_logits, dim=-1)
         next_token = torch.multinomial(
             probabilities,

@@ -90,6 +90,11 @@ def parse_args() -> argparse.Namespace:
         help="share token embedding and output weights (enabled by default)",
     )
     parser.add_argument(
+        "--precision",
+        choices=["fp32", "bf16"],
+        help="compute precision (default: bf16 on CUDA, fp32 otherwise)",
+    )
+    parser.add_argument(
         "--position-encoding",
         choices=["learned", "rope"],
         help="positional encoding used by new models (default: rope)",
@@ -273,6 +278,7 @@ def evaluate_language_model(
     batch_size: int,
     ctx_length: int,
     num_batches: int,
+    autocast_dtype: torch.dtype | None = None,
 ) -> float:
     model.eval()
     losses = []
@@ -283,8 +289,14 @@ def evaluate_language_model(
             batch_size=batch_size,
             ctx_length=ctx_length,
         )
-        logits = model(x_batch)
-        losses.append(language_model_loss(logits, y_batch))
+        with torch.autocast(
+            device_type=token_ids.device.type,
+            dtype=autocast_dtype,
+            enabled=autocast_dtype is not None,
+        ):
+            logits = model(x_batch)
+            loss = language_model_loss(logits, y_batch)
+        losses.append(loss)
 
     return torch.stack(losses).mean().item()
 
@@ -294,7 +306,16 @@ def main() -> None:
     torch.manual_seed(42)
 
     device = select_device()
+    precision = args.precision
+    if precision is None:
+        precision = "bf16" if device.type == "cuda" else "fp32"
 
+    if precision == "bf16":
+        if device.type != "cuda":
+            raise ValueError("bf16 training is currently only supported on CUDA")
+        if not torch.cuda.is_bf16_supported():
+            raise RuntimeError("this CUDA GPU does not support bfloat16")
+    autocast_dtype = torch.bfloat16 if precision == "bf16" else None
     if args.dataset == "toy":
         text = "hello world " * 100
         split_index = int(len(text) * 0.9)
@@ -506,6 +527,7 @@ def main() -> None:
     parameter_count = sum(parameter.numel() for parameter in model.parameters())
 
     print(f"Device: {device}")
+    print(f"Precision: {precision}")
     print(f"Dataset: {args.dataset}")
     print(f"Model profile: {model_profile}")
     print(f"Training characters: {training_character_count:,}")
@@ -557,6 +579,7 @@ def main() -> None:
             x_batch=x_batch,
             y_batch=y_batch,
             max_grad_norm=1.0,
+            autocast_dtype=autocast_dtype,
         )
         scheduler.step()
 
@@ -573,6 +596,7 @@ def main() -> None:
                 batch_size=args.batch_size,
                 ctx_length=ctx_length,
                 num_batches=args.eval_batches,
+                autocast_dtype=autocast_dtype,
             )
             print(
                 f"Step {step:>4}/{steps} "
@@ -627,6 +651,7 @@ def main() -> None:
         max_new_tokens=max_new_tokens,
         temperature=args.temperature,
         device=device,
+        autocast_dtype=autocast_dtype,
     )
 
     print()

@@ -31,6 +31,7 @@ def train_language_model_step(
     x_batch: torch.Tensor,
     y_batch: torch.Tensor,
     max_grad_norm: float | None = 1.0,
+    autocast_dtype: torch.dtype | None = None,
 ) -> torch.Tensor:
     if x_batch.shape != y_batch.shape:
         raise ValueError("x_batch and y_batch must have the same shape")
@@ -40,9 +41,13 @@ def train_language_model_step(
 
     model.train()
     optimizer.zero_grad(set_to_none=True)
-
-    logits = model(x_batch)
-    loss = language_model_loss(logits, y_batch)
+    with torch.autocast(
+        device_type=x_batch.device.type,
+        dtype=autocast_dtype,
+        enabled=autocast_dtype is not None,
+    ):
+        logits = model(x_batch)
+        loss = language_model_loss(logits, y_batch)
 
     loss.backward()
 
