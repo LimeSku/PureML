@@ -350,14 +350,14 @@ def main() -> None:
             embedding_dim = 512
             num_heads = 8
             num_layers = 8
-            hidden_dim = 2048
+            hidden_dim = 1408
         else:
             model_profile = "standard"
             ctx_length = 256
             embedding_dim = 384
             num_heads = 6
             num_layers = 6
-            hidden_dim = 1536
+            hidden_dim = 1024
         learning_rate = 3e-4
         weight_decay = 0.01
         steps = args.steps if args.steps is not None else default_steps

@@ -9,19 +9,15 @@ from pureml.llm.torchgpt.position import PositionEncoding
 class FeedForward(nn.Module):
     def __init__(self, embedding_dim: int, hidden_dim: int, init_std: float = 0.02):
         super().__init__()
-        # replace bias term by bias in tensor
-        self.W1 = nn.Linear(embedding_dim, hidden_dim, bias=True)
-        self.W2 = nn.Linear(hidden_dim, embedding_dim, bias=True)
+        self.W1 = nn.Linear(embedding_dim, 2 * hidden_dim, bias=False)
+        self.W2 = nn.Linear(hidden_dim, embedding_dim, bias=False)
 
         nn.init.normal_(self.W1.weight, mean=0.0, std=init_std)
-        nn.init.zeros_(self.W1.bias)
         nn.init.normal_(self.W2.weight, mean=0.0, std=init_std)
-        nn.init.zeros_(self.W2.bias)
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
-        x = self.W1(x)
-        x = F.gelu(x)
-        return self.W2(x)
+        gate, value = self.W1(x).chunk(2, dim=-1)
+        return self.W2(F.silu(gate) * value)
 
 
 class TransformerBlock(nn.Module):
